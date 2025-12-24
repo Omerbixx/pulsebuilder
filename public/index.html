@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulse AI — Build from Text</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        pulse: {
+                            primary: '#ffffff',
+                            dark: '#000000',
+                            light: '#e5e7eb',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            background-color: #fff;
+            color: #000;
+        }
+        
+        .grid-bg {
+            background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px),
+                              linear-gradient(180deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+            background-size: 44px 44px;
+            background-position: 0 0, 0 0;
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0, 0, 0, 0.10);
+            backdrop-filter: blur(10px);
+        }
+        
+        .soft-shadow {
+            box-shadow: 0 18px 55px rgba(0, 0, 0, 0.14);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+        }
+        
+        .button-primary {
+            background: #000;
+            color: #fff;
+        }
+        
+        .button-primary:hover {
+            background: #111827;
+        }
+        
+        .button-secondary {
+            background: transparent;
+            color: #000;
+            border: 1px solid rgba(0, 0, 0, 0.22);
+        }
+        .button-secondary:hover {
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        .input-shell {
+            border-radius: 1rem;
+        }
+
+        .input-shell textarea {
+            color: #000;
+        }
+
+        .text-white { color: #000 !important; }
+        .text-gray-300 { color: #374151 !important; }
+        .text-gray-200 { color: #111827 !important; }
+        .text-gray-400 { color: #4b5563 !important; }
+        .text-gray-500 { color: #6b7280 !important; }
+        .text-gray-600 { color: #4b5563 !important; }
+        .text-gray-900 { color: #111827 !important; }
+
+        .border-white\/10 { border-color: rgba(0, 0, 0, 0.10) !important; }
+        .bg-white\/5 { background-color: rgba(0, 0, 0, 0.03) !important; }
+        .bg-white\/10 { background-color: rgba(0, 0, 0, 0.06) !important; }
+        .bg-white\/20 { background-color: rgba(0, 0, 0, 0.10) !important; }
+        .bg-white\/30 { background-color: rgba(0, 0, 0, 0.14) !important; }
+
+        @keyframes preview-float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes preview-sheen {
+            0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+            15% { opacity: 1; }
+            40% { opacity: 0; }
+            100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
+        }
+
+        .preview-anim {
+            position: relative;
+            overflow: hidden;
+            animation: preview-float 6s ease-in-out infinite;
+            will-change: transform;
+        }
+
+        .preview-anim::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -60%;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+            filter: blur(0.5px);
+            animation: preview-sheen 7.5s ease-in-out infinite;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="grid-bg min-h-screen">
+    <nav class="container mx-auto px-6 py-5">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <div class="w-9 h-9 rounded-lg panel soft-shadow flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-black" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <span class="text-xl font-semibold tracking-tight text-black">Pulse AI</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#features" class="text-gray-300 hover:text-white transition">Features</a>
+                <a href="#how" class="text-gray-300 hover:text-white transition">How it works</a>
+            </div>
+        </div>
+    </nav>
+
+    <section class="relative overflow-hidden">
+        <div class="container mx-auto px-6 py-16 md:py-24">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+                <div class="lg:col-span-7 flex flex-col">
+                    <p class="inline-flex items-center gap-2 panel px-4 py-2 rounded-full text-sm text-gray-200">
+                        <span class="inline-block w-2 h-2 rounded-full bg-white"></span>
+                        Build from text. Export clean code.
+                    </p>
+                    <h1 class="mt-6 text-4xl md:text-6xl font-semibold tracking-tight text-white">
+                        Turn a plain prompt into a <span class="text-gray-200">real website</span>.
+                    </h1>
+                    <p class="mt-6 text-lg md:text-xl text-gray-300">Describe what you want. Pulse drafts the UI, structure, and flow so you can ship faster.</p>
+
+                    <div class="mt-10 panel soft-shadow rounded-2xl p-4 md:p-6 input-shell">
+                        <div class="relative">
+                            <textarea
+                                id="prompt-textarea"
+                                placeholder="Describe the website or app you want to create..."
+                                class="w-full bg-transparent outline-none placeholder-gray-500 text-white text-base md:text-lg"
+                                rows="5"
+                                wrap="hard"
+                                style="resize: vertical; min-height: 9rem; padding-right: 9rem;"
+                            ></textarea>
+                            <button id="generate-btn" class="absolute bottom-3 right-3 px-5 py-3 rounded-xl button-primary transition font-medium">
+                                Create
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-5 flex">
+                    <div class="panel soft-shadow rounded-2xl p-6 preview-anim flex flex-col h-full w-full">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-sm uppercase tracking-wider text-gray-400">Preview</h2>
+                            <span class="text-xs text-gray-400">concept</span>
+                        </div>
+                        <div class="mt-4 rounded-xl border border-white/10 overflow-hidden flex-1 flex flex-col">
+                            <div class="bg-white/5 px-4 py-3 flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-gray-300 text-sm">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/30"></span>
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/20"></span>
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/10"></span>
+                                </div>
+                                <span class="text-xs text-gray-400">pulse.ai</span>
+                            </div>
+                            <div class="p-5 flex-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-lg font-semibold">Landing page draft</div>
+                                    <span class="text-xs text-gray-400">auto</span>
+                                </div>
+                                <p class="mt-2 text-sm text-gray-300">Generated from your prompt — tweak and export.</p>
+
+                                <div class="mt-4 grid grid-cols-2 gap-3 text-center">
+                                    <div class="panel rounded-xl p-3">
+                                        <div class="text-xl font-semibold">12,345</div>
+                                        <div class="text-xs text-gray-400">sites created</div>
+                                    </div>
+                                    <div class="panel rounded-xl p-3">
+                                        <div class="text-xl font-semibold">28s</div>
+                                        <div class="text-xs text-gray-400">avg first draft</div>
+                                    </div>
+                                    <div class="panel rounded-xl p-3">
+                                        <div class="text-xl font-semibold">4.9/5</div>
+                                        <div class="text-xs text-gray-400">builder rating</div>
+                                    </div>
+                                    <div class="panel rounded-xl p-3">
+                                        <div class="text-xl font-semibold">98%</div>
+                                        <div class="text-xs text-gray-400">export success</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="panel rounded-2xl p-5">
+                    <div class="text-2xl font-semibold">Clean</div>
+                    <div class="mt-1 text-sm text-gray-400">Readable code output</div>
+                </div>
+                <div class="panel rounded-2xl p-5">
+                    <div class="text-2xl font-semibold">Fast</div>
+                    <div class="mt-1 text-sm text-gray-400">Prototype in minutes</div>
+                </div>
+                <div class="panel rounded-2xl p-5">
+                    <div class="text-2xl font-semibold">Responsive</div>
+                    <div class="mt-1 text-sm text-gray-400">Mobile-first layouts</div>
+                </div>
+                <div class="panel rounded-2xl p-5">
+                    <div class="text-2xl font-semibold">Deploy</div>
+                    <div class="mt-1 text-sm text-gray-400">Ship anywhere</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="how" class="py-16 md:py-24">
+        <div class="container mx-auto px-6">
+            <div class="max-w-3xl">
+                <h2 class="text-3xl md:text-4xl font-semibold text-white">How it works</h2>
+                <p class="mt-3 text-lg text-gray-300">A simple loop: describe → generate → refine → ship.</p>
+            </div>
+
+            <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-comment-dots"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Describe</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Write a clear prompt. Mention pages, sections, tone, and style.</p>
+                    <div class="mt-5 text-sm text-gray-400">Tip: include "dark theme" + "minimal" for best results.</div>
+                </div>
+
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Generate</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Pulse drafts layout, components, and structure you can actually use.</p>
+                    <div class="mt-5 text-sm text-gray-400">Get a strong first draft, then iterate quickly.</div>
+                </div>
+
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-rocket"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Ship</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Export clean code and deploy. Keep control of your stack.</p>
+                    <div class="mt-5 text-sm text-gray-400">Works great with modern hosting like Vercel.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="py-16 md:py-24">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+                <div class="max-w-2xl">
+                    <h2 class="text-3xl md:text-4xl font-semibold text-white">Features that stay out of your way</h2>
+                    <p class="mt-3 text-lg text-gray-300">A crisp dark UI, fast iteration, and code you can own.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="/build" class="px-4 py-2 rounded-lg button-primary transition text-sm">Start now</a>
+                </div>
+            </div>
+
+            <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-brain"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Smart defaults</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Good spacing, readable typography, and modern layout choices from the start.</p>
+                </div>
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Clean code</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Export understandable HTML/CSS/JS you can maintain and extend.</p>
+                </div>
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-mobile-alt"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Responsive</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Layouts adapt smoothly from phones to ultrawide screens.</p>
+                </div>
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Composable sections</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Swap hero sections, grids, and components without rewrites.</p>
+                </div>
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-shield"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Production-minded</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Built for clarity: fewer gimmicks, more signal, better UX.</p>
+                </div>
+                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold">Fast iteration</h3>
+                    </div>
+                    <p class="mt-4 text-gray-300">Generate, tweak, regenerate—without losing the overall structure.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-16 md:py-24">
+        <div class="container mx-auto px-6">
+            <div class="panel soft-shadow rounded-2xl p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                    <h3 class="text-2xl md:text-3xl font-semibold text-white">Ready to generate something clean?</h3>
+                    <p class="mt-2 text-gray-300">No rainbow. No noise. Just a dark, focused UI.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="/build" class="px-5 py-3 rounded-xl button-primary transition font-medium">Get started</a>
+                    <a href="#" class="px-5 py-3 rounded-xl button-secondary transition font-medium">Back to top</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="border-t border-white/10 py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div class="md:col-span-2">
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-9 h-9 rounded-lg panel flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <span class="text-xl font-bold text-white">Pulse AI</span>
+                    </div>
+                    <p class="mb-4 text-gray-300">A dark, focused build experience: prompt → generate → iterate → ship.</p>
+                </div>
+                
+                <div>
+                    <h4 class="text-white font-medium mb-4">Product</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="hover:text-white transition">Features</a></li>
+                        <li><a href="#" class="hover:text-white transition">Examples</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="text-white font-medium mb-4">Company</h4>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="hover:text-white transition">About</a></li>
+                        <li><a href="#" class="hover:text-white transition">Contact</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-white/10 mt-12 pt-8 flex justify-center">
+                <p class="text-gray-500 text-center">&copy; 2025 Pulse AI. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const promptTextarea = document.getElementById('prompt-textarea');
+        const generateButton = document.getElementById('generate-btn');
+
+        if (promptTextarea && generateButton) {
+          promptTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              generateButton.click();
+            }
+          });
+        }
+
+        if (generateButton) {
+          generateButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const userPrompt = (promptTextarea?.value || '').trim();
+            if (userPrompt) {
+              try { localStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
+              window.location.href = `/build?query=${encodeURIComponent(userPrompt)}`;
+              return;
+            }
+            window.location.href = '/build';
+          });
+        }
+
+        const featureCards = document.querySelectorAll('.feature-card');
+        featureCards.forEach(card => {
+          card.addEventListener('mouseenter', () => {
+            card.classList.add('shadow-lg');
+          });
+          card.addEventListener('mouseleave', () => {
+            card.classList.remove('shadow-lg');
+          });
+        });
+      });
+    </script>
+</body>
+</html>
