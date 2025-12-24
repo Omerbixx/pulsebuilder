@@ -970,7 +970,6 @@
       }
 
       function tearDownTurnstile(disableConfig) {
-        turnstileState.verified = true;
         if (disableConfig) turnstileState.configured = false;
         turnstileState.ensureModal = null;
 
@@ -1077,10 +1076,20 @@
               }
 
               if (!verified) {
-                tearDownTurnstile(true);
+                try {
+                  if (
+                    typeof window !== 'undefined' &&
+                    window.turnstile &&
+                    turnstileState.widgetId !== null &&
+                    typeof window.turnstile.reset === 'function'
+                  ) {
+                    window.turnstile.reset(turnstileState.widgetId);
+                  }
+                } catch (_) {}
                 return;
               }
 
+              turnstileState.verified = true;
               tearDownTurnstile(true);
             }
           });
