@@ -222,7 +222,10 @@
       initialized: false,
       configured: false,
       verified: false,
-      ensureModal: null
+      ensureModal: null,
+      widgetId: null,
+      backdrop: null,
+      container: null
     };
     let pendingAutoPrompt = null;
 
@@ -954,13 +957,45 @@
       const container = document.getElementById('turnstile-container');
       if (!backdrop || !container) return;
 
+      turnstileState.backdrop = backdrop;
+      turnstileState.container = container;
+
       function openModal() {
         backdrop.style.display = 'flex';
       }
 
       function closeModal() {
         backdrop.style.display = 'none';
-        container.innerHTML = '';
+        if (container) container.innerHTML = '';
+      }
+
+      function tearDownTurnstile(disableConfig) {
+        turnstileState.verified = true;
+        if (disableConfig) turnstileState.configured = false;
+        turnstileState.ensureModal = null;
+
+        if (typeof window !== 'undefined' && window.turnstile && turnstileState.widgetId !== null) {
+          try {
+            if (typeof window.turnstile.remove === 'function') {
+              window.turnstile.remove(turnstileState.widgetId);
+            } else if (typeof window.turnstile.reset === 'function') {
+              window.turnstile.reset(turnstileState.widgetId);
+            }
+          } catch (_) {
+          }
+        }
+        turnstileState.widgetId = null;
+
+        closeModal();
+
+        if (backdrop && backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+        turnstileState.backdrop = null;
+        turnstileState.container = null;
+
+        if (typeof setSendEnabled === 'function') setSendEnabled(true);
+        processPendingAutoPrompt();
       }
 
       async function fetchSiteKey() {
@@ -1007,6 +1042,11 @@
           turnstileState.initialized = true;
           turnstileState.configured = false;
           turnstileState.verified = true;
+          if (backdrop && backdrop.parentNode) {
+            backdrop.parentNode.removeChild(backdrop);
+          }
+          turnstileState.backdrop = null;
+          turnstileState.container = null;
           processPendingAutoPrompt();
           return;
         }
@@ -1037,22 +1077,14 @@
               }
 
               if (!verified) {
-                turnstileState.verified = true;
-                turnstileState.configured = false;
-                turnstileState.ensureModal = null;
-                closeModal();
-                if (typeof setSendEnabled === 'function') setSendEnabled(true);
-                processPendingAutoPrompt();
+                tearDownTurnstile(true);
                 return;
               }
 
-              turnstileState.verified = true;
-              turnstileState.ensureModal = null;
-              closeModal();
-              if (typeof setSendEnabled === 'function') setSendEnabled(true);
-              processPendingAutoPrompt();
+              tearDownTurnstile(true);
             }
           });
+          turnstileState.widgetId = widgetId;
 
           turnstileState.initialized = true;
           turnstileState.configured = true;
