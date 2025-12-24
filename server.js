@@ -442,6 +442,15 @@ function verifyTurnstileSession(value, maxAgeMs) {
   return true;
 }
 
+function signTurnstileSession(ts) {
+  const secret = getTurnstileSessionSecret();
+  if (!secret) return '';
+
+  const tsString = typeof ts === 'number' && Number.isFinite(ts) ? String(ts) : String(Date.now());
+  const sig = crypto.createHmac('sha256', secret).update(tsString).digest('hex');
+  return `${tsString}.${sig}`;
+}
+
 function getTurnstileSiteKey() {
   const raw = process.env['TURNSTILE_SITE_KEY'] || '';
   const trimmed = typeof raw === 'string' ? raw.trim() : '';

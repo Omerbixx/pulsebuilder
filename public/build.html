@@ -218,49 +218,6 @@
     let chatHistory = [];
     let persistTimer = null;
 
-    const turnstileState = {
-      initialized: false,
-      configured: false,
-      verified: false,
-      ensureModal: null,
-      widgetId: null,
-      backdrop: null,
-      container: null
-    };
-    let pendingAutoPrompt = null;
-
-    async function handleUserSubmit(text) {
-      const trimmed = (text || '').trim();
-      if (!trimmed) return;
-      pendingAutoPrompt = null;
-
-      addMessage('user', trimmed);
-      const historySnapshot = chatHistory.slice(0);
-      chatInput.value = '';
-
-      try {
-        finalizeSearchBubble();
-        await streamAssistantReply(trimmed, historySnapshot);
-      } catch (_) {
-        addMessage('assistant', 'Something went wrong while streaming a reply.');
-      }
-    }
-
-    async function processPendingAutoPrompt() {
-      if (!pendingAutoPrompt) return;
-      if (!turnstileState.initialized) return;
-      if (turnstileState.configured && !turnstileState.verified) {
-        if (typeof turnstileState.ensureModal === 'function') {
-          turnstileState.ensureModal();
-        }
-        return;
-      }
-
-      const text = pendingAutoPrompt;
-      pendingAutoPrompt = null;
-      await handleUserSubmit(text);
-    }
-
     function schedulePersistHistory() {
       if (persistTimer) window.clearTimeout(persistTimer);
       persistTimer = window.setTimeout(() => {
@@ -813,21 +770,16 @@
       e.preventDefault();
       const text = (chatInput.value || '').trim();
       if (!text) return;
+      addMessage('user', text);
+      const historySnapshot = chatHistory.slice(0);
+      chatInput.value = '';
 
-      if (!turnstileState.initialized) {
-        pendingAutoPrompt = text;
-        return;
+      try {
+        finalizeSearchBubble();
+        await streamAssistantReply(text, historySnapshot);
+      } catch (_) {
+        addMessage('assistant', 'Something went wrong while streaming a reply.');
       }
-
-      if (turnstileState.configured && !turnstileState.verified) {
-        pendingAutoPrompt = text;
-        if (typeof turnstileState.ensureModal === 'function') {
-          turnstileState.ensureModal();
-        }
-        return;
-      }
-
-      await handleUserSubmit(text);
     });
 
     (function bootstrapQueryPrompt() {
@@ -837,13 +789,12 @@
         if (!q) return;
         const prompt = decodeURIComponent(q);
         if (!prompt.trim()) return;
-        const normalized = prompt.trim();
-        chatInput.value = normalized;
-        pendingAutoPrompt = normalized;
-        processPendingAutoPrompt();
+        chatInput.value = prompt;
+        chatForm.requestSubmit();
         url.searchParams.delete('query');
         window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       } catch (_) {
+         ignore
       }
     })();
 
@@ -957,44 +908,12 @@
       const container = document.getElementById('turnstile-container');
       if (!backdrop || !container) return;
 
-      turnstileState.backdrop = backdrop;
-      turnstileState.container = container;
-
       function openModal() {
         backdrop.style.display = 'flex';
       }
 
       function closeModal() {
         backdrop.style.display = 'none';
-        if (container) container.innerHTML = '';
-      }
-
-      function tearDownTurnstile(disableConfig) {
-        if (disableConfig) turnstileState.configured = false;
-        turnstileState.ensureModal = null;
-
-        if (typeof window !== 'undefined' && window.turnstile && turnstileState.widgetId !== null) {
-          try {
-            if (typeof window.turnstile.remove === 'function') {
-              window.turnstile.remove(turnstileState.widgetId);
-            } else if (typeof window.turnstile.reset === 'function') {
-              window.turnstile.reset(turnstileState.widgetId);
-            }
-          } catch (_) {
-          }
-        }
-        turnstileState.widgetId = null;
-
-        closeModal();
-
-        if (backdrop && backdrop.parentNode) {
-          backdrop.parentNode.removeChild(backdrop);
-        }
-        turnstileState.backdrop = null;
-        turnstileState.container = null;
-
-        if (typeof setSendEnabled === 'function') setSendEnabled(true);
-        processPendingAutoPrompt();
       }
 
       async function fetchSiteKey() {
@@ -1037,16 +956,9 @@
         const siteKey = await fetchSiteKey();
         if (!siteKey) {
           // Turnstile not configured on the server; allow sending without captcha.
-          if (typeof setSendEnabled === 'function') setSendEnabled(true);
-          turnstileState.initialized = true;
-          turnstileState.configured = false;
-          turnstileState.verified = true;
-          if (backdrop && backdrop.parentNode) {
-            backdrop.parentNode.removeChild(backdrop);
+          if (typeof setSendEnabled === 'function') {
+            setSendEnabled(true);
           }
-          turnstileState.backdrop = null;
-          turnstileState.container = null;
-          processPendingAutoPrompt();
           return;
         }
 
@@ -1055,55 +967,28 @@
           if (!t) return;
 
           container.innerHTML = '';
-          const widgetId = t.render('#turnstile-container', {
+          t.render('#turnstile-container', {
             sitekey: siteKey,
             callback: async function (token) {
-              let verified = false;
               try {
                 const resp = await fetch('/api/turnstile/verify', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json'
                   },
-                  credentials: 'same-origin',
                   body: JSON.stringify({ token })
                 });
                 const data = await resp.json().catch(() => null);
-                if (resp.ok && data && data.success) {
-                  verified = true;
+                if (data && data.success) {
+                  closeModal();
+                  setSendEnabled(true);
                 }
               } catch (_) {
               }
-
-              if (!verified) {
-                try {
-                  if (
-                    typeof window !== 'undefined' &&
-                    window.turnstile &&
-                    turnstileState.widgetId !== null &&
-                    typeof window.turnstile.reset === 'function'
-                  ) {
-                    window.turnstile.reset(turnstileState.widgetId);
-                  }
-                } catch (_) {}
-                return;
-              }
-
-              turnstileState.verified = true;
-              tearDownTurnstile(true);
             }
           });
-          turnstileState.widgetId = widgetId;
 
-          turnstileState.initialized = true;
-          turnstileState.configured = true;
-          turnstileState.verified = false;
-          turnstileState.ensureModal = () => {
-            backdrop.style.display = 'flex';
-          };
-          if (typeof setSendEnabled === 'function') setSendEnabled(false);
           openModal();
-          processPendingAutoPrompt();
         } catch (_) {
         }
       })();
