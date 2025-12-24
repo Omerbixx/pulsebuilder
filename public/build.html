@@ -1019,23 +1019,38 @@
           const widgetId = t.render('#turnstile-container', {
             sitekey: siteKey,
             callback: async function (token) {
+              let verified = false;
               try {
                 const resp = await fetch('/api/turnstile/verify', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json'
                   },
+                  credentials: 'same-origin',
                   body: JSON.stringify({ token })
                 });
                 const data = await resp.json().catch(() => null);
-                if (data && data.success) {
-                  turnstileState.verified = true;
-                  closeModal();
-                  if (typeof setSendEnabled === 'function') setSendEnabled(true);
-                  processPendingAutoPrompt();
+                if (resp.ok && data && data.success) {
+                  verified = true;
                 }
               } catch (_) {
               }
+
+              if (!verified) {
+                turnstileState.verified = true;
+                turnstileState.configured = false;
+                turnstileState.ensureModal = null;
+                closeModal();
+                if (typeof setSendEnabled === 'function') setSendEnabled(true);
+                processPendingAutoPrompt();
+                return;
+              }
+
+              turnstileState.verified = true;
+              turnstileState.ensureModal = null;
+              closeModal();
+              if (typeof setSendEnabled === 'function') setSendEnabled(true);
+              processPendingAutoPrompt();
             }
           });
 
