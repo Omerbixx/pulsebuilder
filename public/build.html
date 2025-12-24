@@ -209,6 +209,8 @@
     let activeView = 'preview';
     let activeMobilePane = 'preview';
 
+    let pendingQueryPrompt = null;
+
     let editorInstance = null;
     let queuedEditorValue = null;
     let applyTimer = null;
@@ -790,7 +792,7 @@
         const prompt = decodeURIComponent(q);
         if (!prompt.trim()) return;
         chatInput.value = prompt;
-        chatForm.requestSubmit();
+        pendingQueryPrompt = prompt;
         url.searchParams.delete('query');
         window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       } catch (_) {
@@ -959,6 +961,10 @@
           if (typeof setSendEnabled === 'function') {
             setSendEnabled(true);
           }
+          if (pendingQueryPrompt && chatForm) {
+            chatForm.requestSubmit();
+            pendingQueryPrompt = null;
+          }
           return;
         }
 
@@ -982,6 +988,10 @@
                 if (data && data.success) {
                   closeModal();
                   setSendEnabled(true);
+                  if (pendingQueryPrompt && chatForm) {
+                    chatForm.requestSubmit();
+                    pendingQueryPrompt = null;
+                  }
                 }
               } catch (_) {
               }
