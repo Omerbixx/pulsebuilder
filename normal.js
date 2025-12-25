@@ -208,7 +208,11 @@
 
         const body = document.createElement('div');
         body.className = 'mt-1 text-sm ' + (role === 'user' ? 'text-white' : 'text-gray-900') + ' whitespace-pre-wrap';
-        body.textContent = m.text;
+        if (role === 'assistant') {
+          renderAssistantFormatted(body, m.text);
+        } else {
+          body.textContent = m.text;
+        }
 
         bubble.appendChild(meta);
         bubble.appendChild(body);
@@ -295,7 +299,9 @@
     }
 
     function addMessage(role, text) {
-      chatHistory.push({ role: role === 'user' ? 'user' : 'assistant', text: String(text || '') });
+      const normalizedRole = role === 'user' ? 'user' : 'assistant';
+      const messageText = String(text || '');
+      chatHistory.push({ role: normalizedRole, text: messageText });
       schedulePersistHistory();
 
       const row = document.createElement('div');
@@ -310,7 +316,11 @@
 
       const body = document.createElement('div');
       body.className = 'mt-1 text-sm ' + (role === 'user' ? 'text-white' : 'text-gray-900') + ' whitespace-pre-wrap';
-      body.textContent = text;
+      if (normalizedRole === 'assistant') {
+        renderAssistantFormatted(body, messageText);
+      } else {
+        body.textContent = messageText;
+      }
 
       bubble.appendChild(meta);
       bubble.appendChild(body);
@@ -349,6 +359,34 @@
       }, 120);
     }
 
+    function renderAssistantFormatted(bodyEl, text) {
+      if (!bodyEl) return;
+      const safe = String(text || '');
+
+      const escaped = safe
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Turn any literal "\n" sequences into real newlines so they always create breaks.
+      const withNewlines = escaped.replace(/\\n/g, '\n');
+
+      const bolded = withNewlines.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
+
+      const lines = bolded.split(/\r?\n/);
+
+      const htmlLines = lines.map((line) => {
+        if (line.startsWith('### ')) {
+          const title = line.slice(4).trim();
+          return '<h3 class="font-semibold text-sm mb-1">' + title + '<\/h3>';
+        }
+        return line;
+      });
+
+      const html = htmlLines.join('<br/>');
+      bodyEl.innerHTML = html;
+    }
+
     chatInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -374,23 +412,51 @@
       body.className = 'mt-1 text-sm text-gray-900 whitespace-pre-wrap';
       body.textContent = '';
 
+      const status = document.createElement('div');
+      status.className = 'mt-2 flex items-center gap-2 text-xs text-gray-500 transition-all duration-150';
+      status.style.opacity = '0';
+      status.style.transform = 'translateY(4px)';
+
+      const dot = document.createElement('span');
+      dot.className = 'inline-block w-2.5 h-2.5 rounded-full border border-gray-400 border-t-transparent animate-spin';
+
+      const statusText = document.createElement('span');
+      statusText.textContent = 'Writing code';
+
+      status.appendChild(dot);
+      status.appendChild(statusText);
+
       bubble.appendChild(meta);
       bubble.appendChild(body);
+      bubble.appendChild(status);
       row.appendChild(bubble);
       messagesEl.appendChild(row);
       scrollMessagesToBottom();
 
-      return { body, msgIndex };
+      return { body, msgIndex, statusEl: status };
     }
 
     async function streamAssistantReply(userText, historySnapshot) {
       let assistantMsg = null;
+      let assistantRawText = '';
 
       const ensureAssistantMsg = () => {
         if (assistantMsg) return assistantMsg;
         assistantMsg = startAssistantStreamMessage();
         assistantMsg.body.textContent = '';
         return assistantMsg;
+      };
+
+      const setCodeWritingStatus = (active) => {
+        const msg = ensureAssistantMsg();
+        if (!msg || !msg.statusEl) return;
+        if (active) {
+          msg.statusEl.style.opacity = '1';
+          msg.statusEl.style.transform = 'translateY(0)';
+        } else {
+          msg.statusEl.style.opacity = '0';
+          msg.statusEl.style.transform = 'translateY(4px)';
+        }
       };
 
       finalizeSearchBubble();
@@ -418,11 +484,14 @@
       const appendChat = (s) => {
         if (!s) return;
         const msg = ensureAssistantMsg();
-        msg.body.textContent += s;
+        // Keep a separate raw buffer so we don't lose newlines/markdown by round-tripping through textContent.
+        assistantRawText += s;
         if (typeof msg.msgIndex === 'number' && chatHistory[msg.msgIndex]) {
-          chatHistory[msg.msgIndex].text = msg.body.textContent;
+          chatHistory[msg.msgIndex].text = assistantRawText;
           schedulePersistHistory();
         }
+        // Apply lightweight formatting (bold + headings) live, based on the raw text.
+        renderAssistantFormatted(msg.body, assistantRawText);
         scrollMessagesToBottom();
       };
 
@@ -465,6 +534,7 @@
             textBuffer = consumeFenceStart(textBuffer.slice(idx));
 
             inCodeBlock = true;
+            setCodeWritingStatus(true);
             editorBuffer = '';
           } else {
             const idxEnd = textBuffer.indexOf('```');
@@ -480,6 +550,7 @@
             if (textBuffer.startsWith('\r\n')) textBuffer = textBuffer.slice(2);
             else if (textBuffer.startsWith('\n')) textBuffer = textBuffer.slice(1);
             inCodeBlock = false;
+            setCodeWritingStatus(false);
           }
         }
       };
@@ -524,17 +595,36 @@
             const data = line.slice(5).trim();
             if (data === '[DONE]') {
               if (assistantMsg && assistantMsg.body) {
-                const raw = assistantMsg.body.textContent || '';
+                const raw = assistantRawText || '';
                 const patches = applyChangeLineDirectivesToHtml(raw) || [];
 
+                let finalText = raw;
                 if (patches.length) {
                   const cleaned = raw.replace(/<changeline\d+>[\s\S]*?<\/changeline\d+>/gi, '').trim();
-                  assistantMsg.body.textContent = cleaned;
-                  if (typeof assistantMsg.msgIndex === 'number' && chatHistory[assistantMsg.msgIndex]) {
-                    chatHistory[assistantMsg.msgIndex].text = cleaned;
-                    schedulePersistHistory();
-                  }
+                  finalText = cleaned;
                   showChangeLineStatus(patches);
+                }
+
+                if (typeof assistantMsg.msgIndex === 'number' && chatHistory[assistantMsg.msgIndex]) {
+                  chatHistory[assistantMsg.msgIndex].text = finalText;
+                  schedulePersistHistory();
+                }
+
+                renderAssistantFormatted(assistantMsg.body, finalText);
+
+                // After streaming is done, keep the status row and show how many lines of code were written.
+                if (assistantMsg.statusEl) {
+                  // Prefer the freshly streamed editor buffer; fall back to current HTML if needed.
+                  let codeText = editorBuffer || getCurrentHtml();
+                  let lineCount = 0;
+                  if (codeText && typeof codeText === 'string') {
+                    lineCount = codeText.split('\n').length;
+                  }
+                  const safeCount = Number.isFinite(lineCount) && lineCount > 0 ? lineCount : 0;
+                  assistantMsg.statusEl.style.opacity = '1';
+                  assistantMsg.statusEl.style.transform = 'translateY(0)';
+                  assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
+                    'Wrote ' + safeCount + ' lines';
                 }
               }
               return;
@@ -765,7 +855,6 @@
       (async () => {
         const siteKey = await fetchSiteKey();
         if (!siteKey) {
-          // Turnstile not configured on the server; allow sending without captcha.
           if (typeof setSendEnabled === 'function') {
             setSendEnabled(true);
           }

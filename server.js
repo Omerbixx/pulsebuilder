@@ -238,7 +238,7 @@ async function runSearches(requests) {
       const imageUrls = allImages
         .map((img) => img?.imageUrl)
         .filter(Boolean)
-        .slice(0, 5);
+        .slice(0, 10);
       results.push({ type: 'images', q: r.q, raw: null, imageUrls });
       continue;
     }
@@ -267,7 +267,7 @@ async function runSearches(requests) {
       const videoLinks = allVideos
         .map((v) => v?.link)
         .filter(Boolean)
-        .slice(0, 50);
+        .slice(0, 5);
       results.push({ type: 'videos', q: r.q, raw: null, videoLinks });
     }
   }
@@ -602,10 +602,30 @@ app.post('/api/chat/stream', async (req, res) => {
 
   const apiKeys = getApiKeysShuffled();
 
+  // If a pulse.txt file exists in the project root, stream raw Cerebras text into it.
+  const pulseFilePath = path.join(__dirname, 'pulse.txt');
+  const hasPulseFile = fs.existsSync(pulseFilePath);
+
+  // We create the write stream lazily inside handleWithKey so it's per-request.
+  let pulseWriteStream = null;
+
   async function handleWithKey(apiKey) {
     const aiClient = await getClient(apiKey);
     const systemPrompt = readSystemPrompt();
     const cleanUserText = stripSearchTags(userText);
+
+    // Lazily create pulse.txt write stream at the start of the request handler
+    // so we can capture both planner output (with search tags) and stream tokens.
+    if (hasPulseFile && !pulseWriteStream) {
+      try {
+        pulseWriteStream = fs.createWriteStream(pulseFilePath, {
+          encoding: 'utf8',
+          flags: 'w'
+        });
+      } catch (_) {
+        pulseWriteStream = null;
+      }
+    }
 
     // 1) Ask the model if it wants to use internet tools (returns ONLY search tags).
     const toolRequests = await (async () => {
@@ -653,6 +673,15 @@ app.post('/api/chat/stream', async (req, res) => {
         });
 
         const text = resp?.choices?.[0]?.message?.content || '';
+
+        // Write raw planner text (including any <search.*> tags) into pulse.txt
+        // before extracting search requests.
+        if (pulseWriteStream && text) {
+          try {
+            pulseWriteStream.write(text + '\n');
+          } catch (_) {}
+        }
+
         return extractSearchRequests(text);
       } catch (_) {
         return [];
@@ -753,9 +782,23 @@ app.post('/api/chat/stream', async (req, res) => {
     for await (const chunk of stream) {
       const token = chunk?.choices?.[0]?.delta?.content || '';
       if (!token) continue;
+
+      // Write raw Cerebras text token directly to pulse.txt (no formatting or filtering).
+      if (pulseWriteStream) {
+        try {
+          pulseWriteStream.write(token);
+        } catch (_) {}
+      }
+
       const safeToken = streamFilter(token);
       if (!safeToken) continue;
       res.write(`data: ${JSON.stringify({ content: safeToken })}\n\n`);
+    }
+
+    if (pulseWriteStream) {
+      try {
+        pulseWriteStream.end();
+      } catch (_) {}
     }
 
     res.write('data: [DONE]\n\n');
