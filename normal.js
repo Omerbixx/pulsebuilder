@@ -623,8 +623,14 @@
                   const safeCount = Number.isFinite(lineCount) && lineCount > 0 ? lineCount : 0;
                   assistantMsg.statusEl.style.opacity = '1';
                   assistantMsg.statusEl.style.transform = 'translateY(0)';
-                  assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
-                    'Wrote ' + safeCount + ' lines';
+
+                  if (safeCount > 0) {
+                    assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
+                      'Wrote ' + safeCount + ' lines';
+                  } else {
+                    // If no lines were written, just show a simple check icon without any line-count text.
+                    assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs">✓<\/span>';
+                  }
                 }
               }
               return;

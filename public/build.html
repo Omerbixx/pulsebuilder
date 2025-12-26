@@ -190,7 +190,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <script>
-    const messagesEl = document.getElementById('messages');
+     const messagesEl = document.getElementById('messages');
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
     const chatSendBtn = document.getElementById('chat-send');
@@ -560,7 +560,6 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-      // Turn any literal "\n" sequences into real newlines so they always create breaks.
       const withNewlines = escaped.replace(/\\n/g, '\n');
 
       const bolded = withNewlines.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
@@ -676,13 +675,11 @@
       const appendChat = (s) => {
         if (!s) return;
         const msg = ensureAssistantMsg();
-        // Keep a separate raw buffer so we don't lose newlines/markdown by round-tripping through textContent.
         assistantRawText += s;
         if (typeof msg.msgIndex === 'number' && chatHistory[msg.msgIndex]) {
           chatHistory[msg.msgIndex].text = assistantRawText;
           schedulePersistHistory();
         }
-        // Apply lightweight formatting (bold + headings) live, based on the raw text.
         renderAssistantFormatted(msg.body, assistantRawText);
         scrollMessagesToBottom();
       };
@@ -804,9 +801,7 @@
 
                 renderAssistantFormatted(assistantMsg.body, finalText);
 
-                // After streaming is done, keep the status row and show how many lines of code were written.
                 if (assistantMsg.statusEl) {
-                  // Prefer the freshly streamed editor buffer; fall back to current HTML if needed.
                   let codeText = editorBuffer || getCurrentHtml();
                   let lineCount = 0;
                   if (codeText && typeof codeText === 'string') {
@@ -815,8 +810,13 @@
                   const safeCount = Number.isFinite(lineCount) && lineCount > 0 ? lineCount : 0;
                   assistantMsg.statusEl.style.opacity = '1';
                   assistantMsg.statusEl.style.transform = 'translateY(0)';
-                  assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
-                    'Wrote ' + safeCount + ' lines';
+
+                  if (safeCount > 0) {
+                    assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
+                      'Wrote ' + safeCount + ' lines';
+                  } else {
+                    assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs">✓<\/span>';
+                  }
                 }
               }
               return;
@@ -1110,7 +1110,6 @@
       }
 
       chatHistory = [];
-      chatHistory = [{ role: 'assistant', text: 'Edit the HTML on the right. Preview updates automatically.' }];
       schedulePersistHistory();
     })();</script>
 </body>

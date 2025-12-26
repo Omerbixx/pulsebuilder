@@ -812,7 +812,12 @@ app.post('/api/chat/stream', async (req, res) => {
     }
 
     let lastErr = null;
-    for (let i = 0; i < keys.length; i++) {
+    const total = keys.length;
+    // Start from a random index so traffic is spread across keys
+    const startIndex = Math.floor(Math.random() * total);
+
+    for (let offset = 0; offset < total; offset++) {
+      const i = (startIndex + offset) % total;
       const key = keys[i];
       const keyNumber = i + 1;
       console.log(`Testing with key ${keyNumber}`);

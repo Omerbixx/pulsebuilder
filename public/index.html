@@ -30,15 +30,25 @@
         body {
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
-            background-color: #fff;
+            background: #f9fafb;
             color: #000;
         }
-        
+
         .grid-bg {
-            background-image: linear-gradient(90deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px),
-                              linear-gradient(180deg, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
-            background-size: 44px 44px;
-            background-position: 0 0, 0 0;
+            min-height: 100vh;
+            background: #f9fafb;
+        }
+
+        .hero-how-bg {
+            /* One continuous glow behind hero + how so there is no seam */
+            background:
+              radial-gradient(circle at center 40%,
+                rgba(253, 137, 45, 0.95) 0%,
+                rgba(253, 186, 116, 0.85) 26%,
+                rgba(255, 233, 176, 0.75) 48%,
+                rgba(255, 244, 214, 0.35) 72%,
+                rgba(249, 250, 251, 0.05) 100%
+              );
         }
         
         .panel {
@@ -131,7 +141,7 @@
     </style>
 </head>
 <body class="antialiased">
-    <div class="grid-bg min-h-screen">
+    <div class="grid-bg hero-how-bg">
     <nav class="container mx-auto px-6 py-5">
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
@@ -149,98 +159,64 @@
         </div>
     </nav>
 
+    <div class="hero-how-bg">
     <section class="relative overflow-hidden">
-        <div class="container mx-auto px-6 py-16 md:py-24">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
-                <div class="lg:col-span-7 flex flex-col">
-                    <p class="inline-flex items-center gap-2 panel px-4 py-2 rounded-full text-sm text-gray-200">
-                        <span class="inline-block w-2 h-2 rounded-full bg-white"></span>
-                        Build from text. Export clean code.
-                    </p>
-                    <h1 class="mt-6 text-4xl md:text-6xl font-semibold tracking-tight text-white">
-                        Turn a plain prompt into a <span class="text-gray-200">real website</span>.
-                    </h1>
-                    <p class="mt-6 text-lg md:text-xl text-gray-300">Describe what you want. Pulse drafts the UI, structure, and flow so you can ship faster.</p>
+        <div class="container mx-auto px-6 pt-16 pb-24 md:pt-24 md:pb-28 flex flex-col items-center">
+            <div class="max-w-3xl text-center">
+                <h1 class="text-3xl md:text-5xl font-semibold tracking-tight text-gray-900">
+                    Turn your idea into a live website
+                </h1>
+                <p class="mt-3 md:mt-4 text-sm md:text-base text-gray-500">
+                    Describe your idea below or get inspired by our templates. Pulse will turn it into a real, editable website.
+                </p>
+            </div>
 
-                    <div class="mt-10 panel soft-shadow rounded-2xl p-4 md:p-6 input-shell">
-                        <div class="relative">
-                            <textarea
-                                id="prompt-textarea"
-                                placeholder="Describe the website or app you want to create..."
-                                class="w-full bg-transparent outline-none placeholder-gray-500 text-white text-base md:text-lg"
-                                rows="5"
-                                wrap="hard"
-                                style="resize: vertical; min-height: 9rem; padding-right: 9rem;"
-                            ></textarea>
-                            <button id="generate-btn" class="absolute bottom-3 right-3 px-5 py-3 rounded-xl button-primary transition font-medium">
-                                Create
-                            </button>
-                        </div>
+            <div class="mt-8 md:mt-10 w-full max-w-3xl">
+                <div class="bg-white/95 soft-shadow rounded-[1.75rem] border border-black/5 px-4 md:px-6 py-4 flex flex-col gap-2.5">
+                    <div class="flex items-start gap-3">
+                        <textarea
+                            id="prompt-textarea"
+                            placeholder="Describe the app or website you want to create..."
+                            class="flex-1 bg-transparent outline-none placeholder-gray-400 text-gray-900 text-sm md:text-base leading-relaxed resize-none"
+                            rows="3"
+                        ></textarea>
+                        <button
+                            id="generate-btn"
+                            class="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-full bg-black text-white flex items-center justify-center shadow-md hover:bg-gray-900 transition"
+                            aria-label="Create from prompt"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                                <path d="M12 19V5" />
+                                <path d="M6 11l6-6 6 6" />
+                            </svg>
+                        </button>
                     </div>
-                </div>
-
-                <div class="lg:col-span-5 flex">
-                    <div class="panel soft-shadow rounded-2xl p-6 preview-anim flex flex-col h-full w-full">
-                        <div class="flex items-center justify-between">
-                            <h2 class="text-sm uppercase tracking-wider text-gray-400">Preview</h2>
-                            <span class="text-xs text-gray-400">concept</span>
-                        </div>
-                        <div class="mt-4 rounded-xl border border-white/10 overflow-hidden flex-1 flex flex-col">
-                            <div class="bg-white/5 px-4 py-3 flex items-center justify-between">
-                                <div class="flex items-center gap-2 text-gray-300 text-sm">
-                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/30"></span>
-                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/20"></span>
-                                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-white/10"></span>
-                                </div>
-                                <span class="text-xs text-gray-400">pulse.ai</span>
-                            </div>
-                            <div class="p-5 flex-1">
-                                <div class="flex items-center justify-between">
-                                    <div class="text-lg font-semibold">Landing page draft</div>
-                                    <span class="text-xs text-gray-400">auto</span>
-                                </div>
-                                <p class="mt-2 text-sm text-gray-300">Generated from your prompt — tweak and export.</p>
-
-                                <div class="mt-4 grid grid-cols-2 gap-3 text-center">
-                                    <div class="panel rounded-xl p-3">
-                                        <div class="text-xl font-semibold">12,345</div>
-                                        <div class="text-xs text-gray-400">sites created</div>
-                                    </div>
-                                    <div class="panel rounded-xl p-3">
-                                        <div class="text-xl font-semibold">28s</div>
-                                        <div class="text-xs text-gray-400">avg first draft</div>
-                                    </div>
-                                    <div class="panel rounded-xl p-3">
-                                        <div class="text-xl font-semibold">4.9/5</div>
-                                        <div class="text-xs text-gray-400">builder rating</div>
-                                    </div>
-                                    <div class="panel rounded-xl p-3">
-                                        <div class="text-xl font-semibold">98%</div>
-                                        <div class="text-xs text-gray-400">export success</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="flex items-center justify-between text-[11px] md:text-xs text-gray-400">
+                        <button type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:text-gray-700 transition">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-black text-white text-[10px]">+</span>
+                            <span>Add details (pages, sections, style)</span>
+                        </button>
+                        <span class="hidden md:inline">Press Enter to send • Shift+Enter for newline</span>
                     </div>
                 </div>
             </div>
 
-            <div class="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="panel rounded-2xl p-5">
-                    <div class="text-2xl font-semibold">Clean</div>
-                    <div class="mt-1 text-sm text-gray-400">Readable code output</div>
+            <div class="mt-14 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
+                <div class="panel rounded-2xl px-4 py-4 md:px-5 md:py-5 border border-black/5 bg-white/80 backdrop-blur-sm hover:bg-white transition">
+                    <div class="text-sm md:text-base font-semibold">Clean</div>
+                    <div class="mt-1 text-[11px] md:text-sm text-gray-400">Readable code output</div>
                 </div>
-                <div class="panel rounded-2xl p-5">
-                    <div class="text-2xl font-semibold">Fast</div>
-                    <div class="mt-1 text-sm text-gray-400">Prototype in minutes</div>
+                <div class="panel rounded-2xl px-4 py-4 md:px-5 md:py-5 border border-black/5 bg-white/80 backdrop-blur-sm hover:bg-white transition">
+                    <div class="text-sm md:text-base font-semibold">Fast</div>
+                    <div class="mt-1 text-[11px] md:text-sm text-gray-400">Prototype in minutes</div>
                 </div>
-                <div class="panel rounded-2xl p-5">
-                    <div class="text-2xl font-semibold">Responsive</div>
-                    <div class="mt-1 text-sm text-gray-400">Mobile-first layouts</div>
+                <div class="panel rounded-2xl px-4 py-4 md:px-5 md:py-5 border border-black/5 bg-white/80 backdrop-blur-sm hover:bg-white transition">
+                    <div class="text-sm md:text-base font-semibold">Responsive</div>
+                    <div class="mt-1 text-[11px] md:text-sm text-gray-400">Mobile-first layouts</div>
                 </div>
-                <div class="panel rounded-2xl p-5">
-                    <div class="text-2xl font-semibold">Deploy</div>
-                    <div class="mt-1 text-sm text-gray-400">Ship anywhere</div>
+                <div class="panel rounded-2xl px-4 py-4 md:px-5 md:py-5 border border-black/5 bg-white/80 backdrop-blur-sm hover:bg-white transition">
+                    <div class="text-sm md:text-base font-semibold">Deploy</div>
+                    <div class="mt-1 text-[11px] md:text-sm text-gray-400">Ship anywhere</div>
                 </div>
             </div>
         </div>
@@ -409,7 +385,7 @@
             </div>
             
             <div class="border-t border-white/10 mt-12 pt-8 flex justify-center">
-                <p class="text-gray-500 text-center">&copy; 2025 Pulse AI. All rights reserved.</p>
+                <p class="text-gray-500 text-center">&copy; 2025 Pulse AI. All rights reserved. - By Omer</p>
             </div>
         </div>
     </footer>
