@@ -1,4 +1,4 @@
-    const messagesEl = document.getElementById('messages');
+     const messagesEl = document.getElementById('messages');
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
     const chatSendBtn = document.getElementById('chat-send');
@@ -232,6 +232,23 @@
       }
     }
 
+    let isStreaming = false;
+
+    function setStreaming(active) {
+      isStreaming = !!active;
+      if (active) {
+        setSendEnabled(false);
+        if (chatInput) {
+          chatInput.disabled = true;
+        }
+      } else {
+        setSendEnabled(true);
+        if (chatInput) {
+          chatInput.disabled = false;
+        }
+      }
+    }
+
     let activeSearchBubble = null;
 
     function formatSearchLabel(requests) {
@@ -368,7 +385,6 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
-      // Turn any literal "\n" sequences into real newlines so they always create breaks.
       const withNewlines = escaped.replace(/\\n/g, '\n');
 
       const bolded = withNewlines.replace(/\*\*(.+?)\*\*/g, '<strong>$1<\/strong>');
@@ -484,13 +500,11 @@
       const appendChat = (s) => {
         if (!s) return;
         const msg = ensureAssistantMsg();
-        // Keep a separate raw buffer so we don't lose newlines/markdown by round-tripping through textContent.
         assistantRawText += s;
         if (typeof msg.msgIndex === 'number' && chatHistory[msg.msgIndex]) {
           chatHistory[msg.msgIndex].text = assistantRawText;
           schedulePersistHistory();
         }
-        // Apply lightweight formatting (bold + headings) live, based on the raw text.
         renderAssistantFormatted(msg.body, assistantRawText);
         scrollMessagesToBottom();
       };
@@ -555,6 +569,42 @@
         }
       };
 
+      let referenceId = '';
+      try {
+        const rawRefId = localStorage.getItem('pulse:referenceId');
+        if (typeof rawRefId === 'string') referenceId = rawRefId;
+      } catch (_) {}
+
+      if (!referenceId) {
+        try {
+          const rawPayload = localStorage.getItem('pulse:referencePayload');
+          if (typeof rawPayload === 'string' && rawPayload) {
+            const payload = JSON.parse(rawPayload);
+            if (payload && Array.isArray(payload.files) && payload.files.length) {
+              const resp = await fetch('/api/references', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (resp.ok) {
+                const data = await resp.json().catch(() => null);
+                const id = data && typeof data.id === 'string' ? data.id : '';
+                if (id) {
+                  referenceId = id;
+                  try {
+                    localStorage.setItem('pulse:referenceId', id);
+                    localStorage.removeItem('pulse:referencePayload');
+                  } catch (_) {}
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: {
@@ -565,7 +615,8 @@
           message: userText,
           html: getCurrentHtml(),
           htmlNumbered: getCurrentHtmlWithLineNumbers(),
-          history: Array.isArray(historySnapshot) ? historySnapshot : []
+          history: Array.isArray(historySnapshot) ? historySnapshot : [],
+          referenceId
         })
       });
 
@@ -612,9 +663,7 @@
 
                 renderAssistantFormatted(assistantMsg.body, finalText);
 
-                // After streaming is done, keep the status row and show how many lines of code were written.
                 if (assistantMsg.statusEl) {
-                  // Prefer the freshly streamed editor buffer; fall back to current HTML if needed.
                   let codeText = editorBuffer || getCurrentHtml();
                   let lineCount = 0;
                   if (codeText && typeof codeText === 'string') {
@@ -628,7 +677,6 @@
                     assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs mr-1">✓<\/span>' +
                       'Wrote ' + safeCount + ' lines';
                   } else {
-                    // If no lines were written, just show a simple check icon without any line-count text.
                     assistantMsg.statusEl.innerHTML = '<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-xs">✓<\/span>';
                   }
                 }
@@ -674,17 +722,21 @@
 
     chatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isStreaming) return;
       const text = (chatInput.value || '').trim();
       if (!text) return;
       addMessage('user', text);
       const historySnapshot = chatHistory.slice(0);
       chatInput.value = '';
 
+      setStreaming(true);
       try {
         finalizeSearchBubble();
         await streamAssistantReply(text, historySnapshot);
       } catch (_) {
         addMessage('assistant', 'Something went wrong while streaming a reply.');
+      } finally {
+        setStreaming(false);
       }
     });
 
@@ -700,7 +752,22 @@
         url.searchParams.delete('query');
         window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       } catch (_) {
-         ignore
+        // ignore
+      }
+    })();
+
+    (function bootstrapReferenceId() {
+      try {
+        const url = new URL(window.location.href);
+        const ref = url.searchParams.get('ref');
+        if (ref && typeof ref === 'string' && ref.trim()) {
+          const clean = ref.trim();
+          try { localStorage.setItem('pulse:referenceId', clean); } catch (_) {}
+          url.searchParams.delete('ref');
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        }
+      } catch (_) {
+        // ignore
       }
     })();
 
@@ -924,6 +991,5 @@
       }
 
       chatHistory = [];
-      chatHistory = [{ role: 'assistant', text: 'Edit the HTML on the right. Preview updates automatically.' }];
       schedulePersistHistory();
     })();
