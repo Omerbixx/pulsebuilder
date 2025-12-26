@@ -509,17 +509,6 @@ async function verifyTurnstileToken(token, remoteIp) {
   }
 }
 
-function getSearchRequestSystemAddon() {
-  return (
-    'Tool use:\n' +
-    '- If you need internet info/images, start your message with one or more of:\n' +
-    '  <search.info>QUERY</search.info>\n' +
-    '  <search.images>QUERY</search.images>\n' +
-    '  <search.videos>QUERY</search.videos>\n' +
-    '- In that tool-request message, output ONLY those tags and nothing else.\n'
-  );
-}
-
 app.get('/api/health', (req, res) => {
   res.status(200).json({ ok: true });
 });
@@ -679,6 +668,25 @@ app.post('/api/chat/stream', async (req, res) => {
     const systemPrompt = readSystemPrompt();
     const cleanUserText = stripSearchTags(userText);
 
+    // Load any reference context from cookie early so both the planner and main
+    // generation steps can use it.
+    let referenceContext = '';
+    try {
+      const cookies = parseCookies(req);
+      const rawRef = cookies['pulse_refs'] || '';
+      if (rawRef && typeof rawRef === 'string') {
+        const decoded = decodeURIComponent(rawRef);
+        if (decoded && decoded.trim()) {
+          referenceContext = decoded;
+          console.log('[chat] Loaded referenceContext from cookie', {
+            approxChars: referenceContext.length
+          });
+        }
+      }
+    } catch (_) {
+      referenceContext = '';
+    }
+
     // Lazily create pulse.txt write stream at the start of the request handler
     // so we can capture both planner output (with search tags) and stream tokens.
     if (hasPulseFile && !pulseWriteStream) {
@@ -705,7 +713,7 @@ app.post('/api/chat/stream', async (req, res) => {
           messages: [
             {
               role: 'system',
-              content: (systemPrompt || '') + '\n\n' + getSearchRequestSystemAddon()
+              content: systemPrompt || ''
             },
             ...(() => {
               const out = [];
@@ -720,17 +728,26 @@ app.post('/api/chat/stream', async (req, res) => {
                 .slice(-12);
 
               if (!history.length) {
-                out.push({ role: 'user', content: cleanUserText });
+                const plannerUserText = referenceContext
+                  ? `User reference documents (plans, requirements, or background):\n\n
+${referenceContext}\n\nUser request:\n${cleanUserText}`
+                  : cleanUserText;
+                out.push({ role: 'user', content: plannerUserText });
                 return out;
               }
 
               for (let i = 0; i < history.length; i++) {
                 const h = history[i];
                 const isLastUser = h.role === 'user' && i === history.length - 1;
-                out.push({
-                  role: h.role,
-                  content: isLastUser ? cleanUserText : h.text
-                });
+                if (isLastUser) {
+                  const plannerUserText = referenceContext
+                    ? `User reference documents (plans, requirements, or background):\n\n
+${referenceContext}\n\nUser request:\n${cleanUserText}`
+                    : cleanUserText;
+                  out.push({ role: h.role, content: plannerUserText });
+                } else {
+                  out.push({ role: h.role, content: h.text });
+                }
               }
               return out;
             })()
@@ -776,23 +793,6 @@ app.post('/api/chat/stream', async (req, res) => {
           requests: searchRequests.map((r) => ({ type: r.type, q: r.q }))
         })}\n\n`
       );
-    }
-
-    let referenceContext = '';
-    try {
-      const cookies = parseCookies(req);
-      const rawRef = cookies['pulse_refs'] || '';
-      if (rawRef && typeof rawRef === 'string') {
-        const decoded = decodeURIComponent(rawRef);
-        if (decoded && decoded.trim()) {
-          referenceContext = decoded;
-          console.log('[chat] Loaded referenceContext from cookie', {
-            approxChars: referenceContext.length
-          });
-        }
-      }
-    } catch (_) {
-      referenceContext = '';
     }
 
     const messages = [
