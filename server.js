@@ -968,6 +968,11 @@ ${referenceContext}\n\nUser request:\n${cleanUserText}`
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/build', (req, res) => {
+  const rawQuery = typeof req.query?.query === 'string' ? req.query.query : '';
+  const trimmed = rawQuery.trim();
+  if (!trimmed) {
+    return res.redirect(302, '/');
+  }
   res.sendFile(path.join(__dirname, 'public', 'build.html'));
 });
 

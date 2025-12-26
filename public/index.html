@@ -40,7 +40,6 @@
         }
 
         .hero-how-bg {
-            /* One continuous glow behind hero + how so there is no seam */
             background:
               radial-gradient(circle at center 35%,
                 rgba(253, 137, 45, 0.95) 0%,
@@ -65,6 +64,15 @@
             transform: translateY(-5px);
             box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
         }
+
+        .feature-card {
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out, box-shadow 0.25s ease-out;
+        }
+
+        .feature-card-hidden {
+            opacity: 0;
+            transform: translateY(14px);
+        }
         
         .button-primary {
             background: #000;
@@ -73,6 +81,8 @@
         
         .button-primary:hover {
             background: #111827;
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 16px 30px rgba(0, 0, 0, 0.25);
         }
         
         .button-secondary {
@@ -119,6 +129,11 @@
             100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
         }
 
+        @keyframes logo-glow {
+            0%, 100% { box-shadow: 0 0 0 rgba(0, 0, 0, 0.06); }
+            50% { box-shadow: 0 0 22px rgba(0, 0, 0, 0.18); }
+        }
+
         .preview-anim {
             position: relative;
             overflow: hidden;
@@ -138,6 +153,38 @@
             animation: preview-sheen 7.5s ease-in-out infinite;
             pointer-events: none;
         }
+
+        .logo-glow {
+            animation: logo-glow 4s ease-in-out infinite;
+        }
+
+        .cursor-circle {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 22px;
+            height: 22px;
+            border-radius: 9999px;
+            pointer-events: none;
+            z-index: 50;
+            background: radial-gradient(circle at center, rgba(240, 129, 3, 0.9), rgba(251, 146, 60, 0.7));
+            box-shadow: 0 0 22px rgba(251, 191, 36, 0.8);
+            transform: translate(-50%, -50%);
+            transition: transform 0.08s ease-out;
+        }
+
+        .back-to-top-hidden {
+            opacity: 0;
+            transform: translateY(6px);
+            pointer-events: none;
+            transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+        }
+
+        .back-to-top-visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -145,7 +192,7 @@
     <nav class="container mx-auto px-6 py-5">
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-2">
-                <div class="w-9 h-9 rounded-lg panel soft-shadow flex items-center justify-center">
+                <div class="w-9 h-9 rounded-lg panel soft-shadow flex items-center justify-center logo-glow">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-black" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
                     </svg>
@@ -243,7 +290,7 @@
             </div>
 
             <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-comment-dots"></i>
@@ -254,7 +301,7 @@
                     <div class="mt-5 text-sm text-gray-400">Tip: include "dark theme" + "minimal" for best results.</div>
                 </div>
 
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-wand-magic-sparkles"></i>
@@ -265,7 +312,7 @@
                     <div class="mt-5 text-sm text-gray-400">Get a strong first draft, then iterate quickly.</div>
                 </div>
 
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-rocket"></i>
@@ -292,7 +339,7 @@
             </div>
 
             <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-brain"></i>
@@ -301,7 +348,7 @@
                     </div>
                     <p class="mt-4 text-gray-300">Good spacing, readable typography, and modern layout choices from the start.</p>
                 </div>
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-code"></i>
@@ -310,7 +357,7 @@
                     </div>
                     <p class="mt-4 text-gray-300">Export understandable HTML/CSS/JS you can maintain and extend.</p>
                 </div>
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-mobile-alt"></i>
@@ -319,7 +366,7 @@
                     </div>
                     <p class="mt-4 text-gray-300">Layouts adapt smoothly from phones to ultrawide screens.</p>
                 </div>
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-layer-group"></i>
@@ -328,7 +375,7 @@
                     </div>
                     <p class="mt-4 text-gray-300">Swap hero sections, grids, and components without rewrites.</p>
                 </div>
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-shield"></i>
@@ -337,7 +384,7 @@
                     </div>
                     <p class="mt-4 text-gray-300">Built for clarity: fewer gimmicks, more signal, better UX.</p>
                 </div>
-                <div class="feature-card panel soft-shadow rounded-2xl p-6">
+                <div class="feature-card feature-card-hidden panel soft-shadow rounded-2xl p-6">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center">
                             <i class="fas fa-bolt"></i>
@@ -359,7 +406,7 @@
                 </div>
                 <div class="flex items-center gap-3">
                     <a href="/build" class="px-5 py-3 rounded-xl button-primary transition font-medium">Get started</a>
-                    <a href="#" class="px-5 py-3 rounded-xl button-secondary transition font-medium">Back to top</a>
+                    <a href="#" id="back-to-top-link" class="px-5 py-3 rounded-xl button-secondary transition font-medium back-to-top-hidden">Back to top</a>
                 </div>
             </div>
         </div>
@@ -370,7 +417,7 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div class="md:col-span-2">
                     <div class="flex items-center space-x-2 mb-4">
-                        <div class="w-9 h-9 rounded-lg panel flex items-center justify-center">
+                        <div class="w-9 h-9 rounded-lg panel flex items-center justify-center logo-glow">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" />
                             </svg>
@@ -427,6 +474,12 @@
             e.preventDefault();
             const userPrompt = (promptTextarea?.value || '').trim();
 
+            if (!userPrompt) {
+              // Require a query before navigating to /build
+              promptTextarea?.focus();
+              return;
+            }
+
             let refIdParam = '';
             try {
               const refId = localStorage.getItem('pulse:referenceId');
@@ -435,12 +488,8 @@
               }
             } catch (_) {}
 
-            if (userPrompt) {
-              try { localStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
-              window.location.href = `/build?query=${encodeURIComponent(userPrompt)}${refIdParam}`;
-              return;
-            }
-            window.location.href = `/build${refIdParam ? `?${refIdParam.slice(1)}` : ''}`;
+            try { localStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
+            window.location.href = `/build?query=${encodeURIComponent(userPrompt)}${refIdParam}`;
           });
         }
 
@@ -542,7 +591,78 @@
             card.classList.remove('shadow-lg');
           });
         });
+
+        const hiddenCards = document.querySelectorAll('.feature-card-hidden');
+        if ('IntersectionObserver' in window) {
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.remove('feature-card-hidden');
+                observer.unobserve(entry.target);
+              }
+            });
+          }, { threshold: 0.15 });
+
+          hiddenCards.forEach(card => observer.observe(card));
+        } else {
+          hiddenCards.forEach(card => card.classList.remove('feature-card-hidden'));
+        }
+
+        const backToTop = document.getElementById('back-to-top-link');
+        if (backToTop) {
+          backToTop.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+
+          const toggleBackToTop = () => {
+            if (window.scrollY > 400) {
+              backToTop.classList.remove('back-to-top-hidden');
+              backToTop.classList.add('back-to-top-visible');
+            } else {
+              backToTop.classList.add('back-to-top-hidden');
+              backToTop.classList.remove('back-to-top-visible');
+            }
+          };
+
+          toggleBackToTop();
+          window.addEventListener('scroll', toggleBackToTop);
+        }
+
+        const internalLinks = document.querySelectorAll('a[href^="#"]');
+        internalLinks.forEach(link => {
+          link.addEventListener('click', (event) => {
+            const href = link.getAttribute('href');
+            if (!href || href === '#') return;
+            const target = document.querySelector(href);
+            if (target) {
+              event.preventDefault();
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          });
+        });
+
+        // Small circle that follows the mouse (desktop only)
+        const cursorCircle = document.createElement('div');
+        cursorCircle.className = 'cursor-circle';
+        document.body.appendChild(cursorCircle);
+
+        let lastX = null;
+        let lastY = null;
+
+        document.addEventListener('mousemove', (event) => {
+          const x = event.clientX;
+          const y = event.clientY;
+          lastX = x;
+          lastY = y;
+          cursorCircle.style.transform = `translate(${x}px, ${y}px)`;
+        });
+
+        // Optionally hide on touch devices
+        document.addEventListener('touchstart', () => {
+          cursorCircle.style.display = 'none';
+        }, { once: true });
       });
     </script>
-</body>
+  </body>
 </html>
