@@ -42,11 +42,11 @@
         .hero-how-bg {
             /* One continuous glow behind hero + how so there is no seam */
             background:
-              radial-gradient(circle at center 40%,
+              radial-gradient(circle at center 35%,
                 rgba(253, 137, 45, 0.95) 0%,
                 rgba(253, 186, 116, 0.85) 26%,
                 rgba(255, 233, 176, 0.75) 48%,
-                rgba(255, 244, 214, 0.35) 72%,
+                rgba(255, 244, 214, 0.35) 80%,
                 rgba(249, 250, 251, 0.05) 100%
               );
         }
@@ -192,12 +192,25 @@
                         </button>
                     </div>
                     <div class="flex items-center justify-between text-[11px] md:text-xs text-gray-400">
-                        <button type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:text-gray-700 transition">
-                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-black text-white text-[10px]">+</span>
+                        <button id="add-details-btn" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:text-gray-700 transition">
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-black">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-2.5 h-2.5">
+                                    <path d="M12 5v14" />
+                                    <path d="M5 12h14" />
+                                </svg>
+                            </span>
                             <span>Add details (pages, sections, style)</span>
                         </button>
+                        <input
+                            id="reference-files-input"
+                            type="file"
+                            class="hidden"
+                            multiple
+                            accept=".txt,.md,.html,.css,.js,.json,.xml,.yaml,.yml,.csv,.pdf,.docx,.odt,.rtf"
+                        />
                         <span class="hidden md:inline">Press Enter to send • Shift+Enter for newline</span>
                     </div>
+                    <div id="reference-files-status" class="mt-1 text-[10px] md:text-[11px] text-gray-500"></div>
                 </div>
             </div>
 
@@ -396,6 +409,9 @@
       document.addEventListener('DOMContentLoaded', () => {
         const promptTextarea = document.getElementById('prompt-textarea');
         const generateButton = document.getElementById('generate-btn');
+        const addDetailsButton = document.getElementById('add-details-btn');
+        const referenceFilesInput = document.getElementById('reference-files-input');
+        const referenceFilesStatus = document.getElementById('reference-files-status');
 
         if (promptTextarea && generateButton) {
           promptTextarea.addEventListener('keydown', (e) => {
@@ -410,12 +426,110 @@
           generateButton.addEventListener('click', (e) => {
             e.preventDefault();
             const userPrompt = (promptTextarea?.value || '').trim();
+
+            let refIdParam = '';
+            try {
+              const refId = localStorage.getItem('pulse:referenceId');
+              if (typeof refId === 'string' && refId.trim()) {
+                refIdParam = `&ref=${encodeURIComponent(refId.trim())}`;
+              }
+            } catch (_) {}
+
             if (userPrompt) {
               try { localStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
-              window.location.href = `/build?query=${encodeURIComponent(userPrompt)}`;
+              window.location.href = `/build?query=${encodeURIComponent(userPrompt)}${refIdParam}`;
               return;
             }
-            window.location.href = '/build';
+            window.location.href = `/build${refIdParam ? `?${refIdParam.slice(1)}` : ''}`;
+          });
+        }
+
+        if (addDetailsButton && referenceFilesInput) {
+          addDetailsButton.addEventListener('click', () => {
+            referenceFilesInput.click();
+          });
+
+          function readFileAsText(file) {
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const text = typeof reader.result === 'string' ? reader.result : '';
+                resolve(text);
+              };
+              reader.onerror = () => resolve('');
+              reader.readAsText(file);
+            });
+          }
+
+          referenceFilesInput.addEventListener('change', async () => {
+            const files = Array.from(referenceFilesInput.files || []);
+            if (!files.length) return;
+
+            const allowedExts = ['.txt','.md','.html','.css','.js','.json','.xml','.yaml','.yml','.csv','.pdf','.docx','.odt','.rtf'];
+
+            const payloadFiles = [];
+            const selectedNames = [];
+
+            for (const file of files) {
+              const name = file.name || '';
+              const lower = name.toLowerCase();
+              const ok = allowedExts.some(ext => lower.endsWith(ext));
+              if (!ok || !name) continue;
+
+              selectedNames.push(name);
+
+              const isTextLike = /\.(txt|md|html|css|js|json|xml|yaml|yml|csv)$/i.test(name);
+              let content = '';
+              if (isTextLike) {
+                content = await readFileAsText(file);
+              }
+
+              payloadFiles.push({
+                name,
+                type: file.type || 'application/octet-stream',
+                content
+              });
+            }
+
+            if (!payloadFiles.length) return;
+
+            try {
+              if (referenceFilesStatus) {
+                referenceFilesStatus.textContent = 'Uploading reference files…';
+              }
+
+              const resp = await fetch('/api/references', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ files: payloadFiles })
+              });
+
+              if (!resp.ok) {
+                if (referenceFilesStatus) {
+                  referenceFilesStatus.textContent = 'Failed to attach reference files.';
+                }
+                return;
+              }
+
+              const data = await resp.json().catch(() => null);
+              const refId = data && typeof data.id === 'string' ? data.id : '';
+              if (refId) {
+                try {
+                  localStorage.setItem('pulse:referenceId', refId);
+                  localStorage.removeItem('pulse:referencePayload');
+                } catch (_) {}
+              }
+
+              if (referenceFilesStatus && selectedNames.length) {
+                referenceFilesStatus.textContent = 'Attached files: ' + selectedNames.join(', ');
+              }
+            } catch (_) {
+              if (referenceFilesStatus) {
+                referenceFilesStatus.textContent = 'Failed to attach reference files.';
+              }
+            }
           });
         }
 

@@ -566,6 +566,71 @@ app.post('/api/turnstile/verify', async (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/api/references', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const files = Array.isArray(body.files) ? body.files : [];
+    if (!files.length) {
+      res.status(400).json({ error: 'No files provided.' });
+      return;
+    }
+
+    const allowedExts = ['.txt','.md','.html','.css','.js','.json','.xml','.yaml','.yml','.csv','.pdf','.docx','.odt','.rtf'];
+
+    let context = '';
+    for (const f of files) {
+      if (!f || typeof f.name !== 'string') continue;
+      const name = f.name.trim();
+      if (!name) continue;
+      const lower = name.toLowerCase();
+      const ok = allowedExts.some((ext) => lower.endsWith(ext));
+      if (!ok) continue;
+
+      const rawContent = typeof f.content === 'string' ? f.content : '';
+      const content = rawContent.slice(0, 20000);
+
+      context += `[User file: ${name}]\n`;
+      if (content) {
+        context += content + '\n\n';
+      } else {
+        context += '(No text content captured for this file.)\n\n';
+      }
+    }
+
+    if (!context) {
+      res.status(400).json({ error: 'No valid files after filtering.' });
+      return;
+    }
+
+    // Store reference context in a cookie instead of writing to disk.
+    const maxCookieChars = 3500; // keep well under typical cookie size limits per cookie
+    const clipped = context.length > maxCookieChars ? context.slice(0, maxCookieChars) : context;
+    const value = encodeURIComponent(clipped);
+
+    const cookieParts = [
+      `pulse_refs=${value}`,
+      'Path=/',
+      'HttpOnly',
+      'SameSite=Lax',
+      'Max-Age=1800' // 30 minutes
+    ];
+    if (process.env.NODE_ENV === 'production') {
+      cookieParts.push('Secure');
+    }
+    res.setHeader('Set-Cookie', cookieParts.join('; '));
+
+    console.log('[references] Stored context in cookie', {
+      approxChars: clipped.length,
+      fileCount: files.length
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error in /api/references:', err);
+    res.status(500).json({ error: 'Internal error.' });
+  }
+});
+
 app.post('/api/chat/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -713,6 +778,23 @@ app.post('/api/chat/stream', async (req, res) => {
       );
     }
 
+    let referenceContext = '';
+    try {
+      const cookies = parseCookies(req);
+      const rawRef = cookies['pulse_refs'] || '';
+      if (rawRef && typeof rawRef === 'string') {
+        const decoded = decodeURIComponent(rawRef);
+        if (decoded && decoded.trim()) {
+          referenceContext = decoded;
+          console.log('[chat] Loaded referenceContext from cookie', {
+            approxChars: referenceContext.length
+          });
+        }
+      }
+    } catch (_) {
+      referenceContext = '';
+    }
+
     const messages = [
       {
         role: 'system',
@@ -732,6 +814,18 @@ app.post('/api/chat/stream', async (req, res) => {
           .slice(-24);
 
         if (!history.length) {
+          // No prior history: include any referenceContext directly before the main user request.
+          if (referenceContext) {
+            out.push({
+              role: 'user',
+              content:
+                'Here are reference documents and plans provided by the user. You MUST follow these closely when building or editing the site. Treat them as primary instructions when there is any ambiguity or conflict.\n\n' +
+                '```text\n' +
+                referenceContext +
+                '\n```'
+            });
+          }
+
           out.push({
             role: 'user',
             content: `User request:\n${cleanUserText}\n\nCurrent HTML (if any, line-numbered):\n\n\`\`\`html\n${currentHtmlNumbered || ''}\n\`\`\`\n`
@@ -742,6 +836,19 @@ app.post('/api/chat/stream', async (req, res) => {
         for (let i = 0; i < history.length; i++) {
           const h = history[i];
           const isLastUser = h.role === 'user' && i === history.length - 1;
+
+          // Right before the latest user request, inject the reference documents as explicit user content.
+          if (isLastUser && referenceContext) {
+            out.push({
+              role: 'user',
+              content:
+                'Here are reference documents and plans provided by the user. You MUST follow these closely when building or editing the site. Treat them as primary instructions when there is any ambiguity or conflict.\n\n' +
+                '```text\n' +
+                referenceContext +
+                '\n```'
+            });
+          }
+
           const content = isLastUser
             ? `${h.text}\n\nCurrent HTML (if any, line-numbered):\n\n\`\`\`html\n${currentHtmlNumbered || ''}\n\`\`\`\n`
             : h.text;
@@ -750,6 +857,16 @@ app.post('/api/chat/stream', async (req, res) => {
 
         return out;
       })(),
+      ...(referenceContext
+        ? [
+            {
+              role: 'system',
+              content:
+                'User reference documents (hidden context from uploaded files). Use these as background knowledge when helping the user and resolving ambiguities:\n\n' +
+                referenceContext
+            }
+          ]
+        : []),
       ...(searchContext
         ? [
             {
