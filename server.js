@@ -599,6 +599,7 @@ app.post('/api/references', async (req, res) => {
     const cookieParts = [
       `pulse_refs=${value}`,
       'Path=/',
+      'HttpOnly',
       'SameSite=Lax',
       'Max-Age=1800' // 30 minutes
     ];
@@ -623,7 +624,6 @@ app.post('/api/chat/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders?.();
 
   if (isTurnstileConfigured()) {
     const cookies = parseCookies(req);
@@ -636,6 +636,59 @@ app.post('/api/chat/stream', async (req, res) => {
       return;
     }
   }
+
+  const cookies = parseCookies(req);
+  const rawRefCookie = cookies['pulse_refs'] || '';
+  let referenceUseCount = 0;
+  if (cookies['pulse_refs_uses']) {
+    const n = parseInt(cookies['pulse_refs_uses'], 10);
+    if (Number.isFinite(n) && n > 0) {
+      referenceUseCount = n;
+    }
+  }
+
+  let referenceContext = '';
+  let shouldUseReferenceCookie = false;
+  // Only allow reference context to be used for a single chat message.
+  if (rawRefCookie && typeof rawRefCookie === 'string' && referenceUseCount < 1) {
+    try {
+      const decoded = decodeURIComponent(rawRefCookie);
+      if (decoded && decoded.trim()) {
+        referenceContext = decoded;
+        shouldUseReferenceCookie = true;
+        console.log('[chat] Loaded referenceContext from cookie', {
+          approxChars: referenceContext.length
+        });
+      }
+    } catch (_) {
+      referenceContext = '';
+      shouldUseReferenceCookie = false;
+    }
+  }
+
+  const setCookieHeaders = [];
+  if (rawRefCookie) {
+    if (shouldUseReferenceCookie) {
+      const newCount = referenceUseCount + 1;
+      // Track that we've used the reference once, then immediately clear it.
+      setCookieHeaders.push(
+        `pulse_refs_uses=${newCount}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`,
+        'pulse_refs=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+        'pulse_refs_uses=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
+      );
+    } else {
+      setCookieHeaders.push(
+        'pulse_refs=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+        'pulse_refs_uses=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax'
+      );
+    }
+  }
+
+  if (setCookieHeaders.length) {
+    res.setHeader('Set-Cookie', setCookieHeaders);
+  }
+
+  res.flushHeaders?.();
 
   const userText = typeof req.body?.message === 'string' ? req.body.message : '';
   const currentHtmlRaw = typeof req.body?.html === 'string' ? req.body.html : '';
@@ -666,25 +719,6 @@ app.post('/api/chat/stream', async (req, res) => {
     const aiClient = await getClient(apiKey);
     const systemPrompt = readSystemPrompt();
     const cleanUserText = stripSearchTags(userText);
-
-    // Load any reference context from cookie early so both the planner and main
-    // generation steps can use it.
-    let referenceContext = '';
-    try {
-      const cookies = parseCookies(req);
-      const rawRef = cookies['pulse_refs'] || '';
-      if (rawRef && typeof rawRef === 'string') {
-        const decoded = decodeURIComponent(rawRef);
-        if (decoded && decoded.trim()) {
-          referenceContext = decoded;
-          console.log('[chat] Loaded referenceContext from cookie', {
-            approxChars: referenceContext.length
-          });
-        }
-      }
-    } catch (_) {
-      referenceContext = '';
-    }
 
     // Lazily create pulse.txt write stream at the start of the request handler
     // so we can capture both planner output (with search tags) and stream tokens.

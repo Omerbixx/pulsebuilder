@@ -1,4 +1,17 @@
-     const messagesEl = document.getElementById('messages');
+    try { localStorage.clear(); } catch (_) {}
+    try { sessionStorage.clear(); } catch (_) {}
+    try {
+      const cookies = document.cookie ? document.cookie.split(';') : [];
+      for (const c of cookies) {
+        const eqPos = c.indexOf('=');
+        const name = (eqPos > -1 ? c.substr(0, eqPos) : c).trim();
+        if (!name) continue;
+        if (name === 'pulse_refs' || name === 'pulse_refs_uses') continue;
+        document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      }
+    } catch (_) {}
+
+         const messagesEl = document.getElementById('messages');
     const chatForm = document.getElementById('chat-form');
     const chatInput = document.getElementById('chat-input');
     const chatSendBtn = document.getElementById('chat-send');
@@ -753,7 +766,6 @@
         url.searchParams.delete('query');
         window.history.replaceState({}, '', url.pathname + url.search + url.hash);
       } catch (_) {
-        // ignore
       }
     })();
 
@@ -768,7 +780,6 @@
           window.history.replaceState({}, '', url.pathname + url.search + url.hash);
         }
       } catch (_) {
-        // ignore
       }
     })();
 
