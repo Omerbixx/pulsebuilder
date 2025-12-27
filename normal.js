@@ -571,13 +571,14 @@
 
       let referenceId = '';
       try {
-        const rawRefId = localStorage.getItem('pulse:referenceId');
+        const rawRefId = sessionStorage.getItem('pulse:referenceId');
         if (typeof rawRefId === 'string') referenceId = rawRefId;
       } catch (_) {}
 
       if (!referenceId) {
         try {
-          const rawPayload = localStorage.getItem('pulse:referencePayload');
+          const rawPayload = sessionStorage.getItem('pulse:referencePayload');
+
           if (typeof rawPayload === 'string' && rawPayload) {
             const payload = JSON.parse(rawPayload);
             if (payload && Array.isArray(payload.files) && payload.files.length) {
@@ -595,8 +596,8 @@
                 if (id) {
                   referenceId = id;
                   try {
-                    localStorage.setItem('pulse:referenceId', id);
-                    localStorage.removeItem('pulse:referencePayload');
+                    sessionStorage.setItem('pulse:referenceId', id);
+                    sessionStorage.removeItem('pulse:referencePayload');
                   } catch (_) {}
                 }
               }
@@ -762,7 +763,7 @@
         const ref = url.searchParams.get('ref');
         if (ref && typeof ref === 'string' && ref.trim()) {
           const clean = ref.trim();
-          try { localStorage.setItem('pulse:referenceId', clean); } catch (_) {}
+          try { sessionStorage.setItem('pulse:referenceId', clean); } catch (_) {}
           url.searchParams.delete('ref');
           window.history.replaceState({}, '', url.pathname + url.search + url.hash);
         }

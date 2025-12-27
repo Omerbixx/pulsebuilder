@@ -454,6 +454,19 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', () => {
+        try { localStorage.clear(); } catch (_) {}
+        try { sessionStorage.clear(); } catch (_) {}
+        try {
+          const cookies = document.cookie ? document.cookie.split(';') : [];
+          for (const c of cookies) {
+            const eqPos = c.indexOf('=');
+            const name = (eqPos > -1 ? c.substr(0, eqPos) : c).trim();
+            if (name) {
+              document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+            }
+          }
+        } catch (_) {}
+
         const promptTextarea = document.getElementById('prompt-textarea');
         const generateButton = document.getElementById('generate-btn');
         const addDetailsButton = document.getElementById('add-details-btn');
@@ -475,20 +488,19 @@
             const userPrompt = (promptTextarea?.value || '').trim();
 
             if (!userPrompt) {
-              // Require a query before navigating to /build
               promptTextarea?.focus();
               return;
             }
 
             let refIdParam = '';
             try {
-              const refId = localStorage.getItem('pulse:referenceId');
+              const refId = sessionStorage.getItem('pulse:referenceId');
               if (typeof refId === 'string' && refId.trim()) {
                 refIdParam = `&ref=${encodeURIComponent(refId.trim())}`;
               }
             } catch (_) {}
 
-            try { localStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
+            try { sessionStorage.setItem('pulse:lastPrompt', userPrompt); } catch (_) {}
             window.location.href = `/build?query=${encodeURIComponent(userPrompt)}${refIdParam}`;
           });
         }
@@ -566,8 +578,8 @@
               const refId = data && typeof data.id === 'string' ? data.id : '';
               if (refId) {
                 try {
-                  localStorage.setItem('pulse:referenceId', refId);
-                  localStorage.removeItem('pulse:referencePayload');
+                  sessionStorage.setItem('pulse:referenceId', refId);
+                  sessionStorage.removeItem('pulse:referencePayload');
                 } catch (_) {}
               }
 
@@ -642,7 +654,6 @@
           });
         });
 
-        // Small circle that follows the mouse (desktop only)
         const cursorCircle = document.createElement('div');
         cursorCircle.className = 'cursor-circle';
         document.body.appendChild(cursorCircle);
@@ -658,7 +669,6 @@
           cursorCircle.style.transform = `translate(${x}px, ${y}px)`;
         });
 
-        // Optionally hide on touch devices
         document.addEventListener('touchstart', () => {
           cursorCircle.style.display = 'none';
         }, { once: true });
