@@ -17,7 +17,128 @@
         const addDetailsButton = document.getElementById('add-details-btn');
         const referenceFilesInput = document.getElementById('reference-files-input');
         const referenceFilesStatus = document.getElementById('reference-files-status');
+        const homeAccountStatus = document.getElementById('home-account-status');
+        const homeAccountButton = document.getElementById('home-account-button');
+        const recentSitesSection = document.getElementById('recent-sites-section');
+        const recentSitesBody = document.getElementById('recent-sites-body');
 
+        async function fetchCurrentUser() {
+          try {
+            const resp = await fetch('/api/auth/me', {
+              method: 'GET',
+              credentials: 'include'
+            });
+            if (!resp.ok) return null;
+            const data = await resp.json().catch(() => null);
+            if (!data || !data.authenticated) return null;
+            return data.user || null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        async function refreshAccountStatus() {
+          const user = await fetchCurrentUser();
+          if (!homeAccountStatus || !homeAccountButton) return;
+          if (!user) {
+            homeAccountStatus.textContent = '';
+            homeAccountButton.textContent = 'Account';
+            if (recentSitesSection) {
+              recentSitesSection.classList.add('hidden');
+            }
+            return;
+          }
+          homeAccountStatus.textContent = `Signed in as ${user.email || 'user'}`;
+          homeAccountButton.textContent = 'Account';
+          if (recentSitesSection) {
+            recentSitesSection.classList.remove('hidden');
+          }
+          loadRecentSites();
+        }
+
+        async function promptCredentials() {
+          const email = window.prompt('Email:');
+          if (!email) return null;
+          const password = window.prompt('Password:');
+          if (!password) return null;
+          return { email: email.trim(), password };
+        }
+
+        async function handleHomeAccountClick() {
+          const user = await fetchCurrentUser();
+          if (!user) {
+            const creds = await promptCredentials();
+            if (!creds) return;
+            const mode = window.confirm('OK = Sign up, Cancel = Log in') ? 'signup' : 'login';
+            const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+            try {
+              const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(creds)
+              });
+              const data = await resp.json().catch(() => null);
+              if (!resp.ok || !data || data.error) {
+                window.alert(data && data.error ? data.error : 'Auth failed.');
+                return;
+              }
+              await refreshAccountStatus();
+            } catch (_) {
+              window.alert('Auth failed.');
+            }
+            return;
+          }
+
+          const choice = window.confirm('OK = Log out, Cancel = stay signed in');
+          if (!choice) return;
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              credentials: 'include'
+            });
+          } catch (_) {}
+          await refreshAccountStatus();
+        }
+
+        async function loadRecentSites() {
+          if (!recentSitesBody) return;
+          try {
+            const resp = await fetch('/api/sites', {
+              method: 'GET',
+              credentials: 'include'
+            });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.error) {
+              recentSitesBody.textContent = 'Failed to load sites.';
+              return;
+            }
+            const sites = Array.isArray(data.sites) ? data.sites.slice(0, 6) : [];
+            if (!sites.length) {
+              recentSitesBody.textContent = 'No saved sites yet.';
+              return;
+            }
+            recentSitesBody.innerHTML = '';
+            sites.forEach((site) => {
+              const card = document.createElement('button');
+              card.type = 'button';
+              card.className = 'w-full text-left panel rounded-2xl px-4 py-3 hover:bg-white transition flex flex-col gap-1';
+              const title = document.createElement('div');
+              title.className = 'font-semibold text-gray-900';
+              const meta = document.createElement('div');
+              meta.className = 'text-xs text-gray-500';
+              meta.textContent = site.updatedAt ? new Date(site.updatedAt).toLocaleString() : '';
+              card.appendChild(title);
+              card.appendChild(meta);
+              card.addEventListener('click', () => {
+                window.open(`/view?site=${encodeURIComponent(site.id)}`, '_blank');
+              });
+              recentSitesBody.appendChild(card);
+            });
+          } catch (_) {
+            recentSitesBody.textContent = 'Failed to load sites.';
+          }
+        }
         if (promptTextarea && generateButton) {
           promptTextarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -217,4 +338,12 @@
         document.addEventListener('touchstart', () => {
           cursorCircle.style.display = 'none';
         }, { once: true });
+
+        if (homeAccountButton) {
+          homeAccountButton.addEventListener('click', () => {
+            handleHomeAccountClick();
+          });
+        }
+
+        refreshAccountStatus();
       });

@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,73 @@ app.use(express.json({ limit: '2mb' }));
 
 function isSerperEnabled() {
   return !!process.env['SERPER_API_KEY'];
+}
+
+// --- Auth & persistence (server-only) ---
+
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+const supabaseAdmin = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null;
+
+async function getUserFromRequest(req) {
+  if (!supabaseAdmin) return null;
+  const cookies = parseCookies(req);
+  const token = cookies['pulse_auth'] || '';
+  if (!token) return null;
+  try {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data || !data.user) return null;
+    return data.user;
+  } catch (_) {
+    return null;
+  }
+}
+
+function setAuthCookie(res, token) {
+  if (!token) return;
+  const maxAgeSeconds = 60 * 60 * 24 * 7; // 7 days
+  const cookieParts = [
+    `pulse_auth=${token}`,
+    `Max-Age=${maxAgeSeconds}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax'
+  ];
+  if (process.env.NODE_ENV === 'production') {
+    cookieParts.push('Secure');
+  }
+  res.setHeader('Set-Cookie', cookieParts.join('; '));
+}
+
+function clearAuthCookie(res) {
+  const parts = [
+    'pulse_auth=;',
+    'Path=/',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    'SameSite=Lax'
+  ];
+  if (process.env.NODE_ENV === 'production') {
+    parts.push('Secure');
+  }
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+async function requireAuth(req, res, next) {
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    res.status(401).json({ error: 'Not authenticated.' });
+    return;
+  }
+  req.user = user;
+  next();
 }
 
 function extractSearchRequests(text) {
@@ -555,6 +623,96 @@ app.post('/api/turnstile/verify', async (req, res) => {
   res.json({ success: true });
 });
 
+// --- Generic auth endpoints (no Supabase exposure to frontend) ---
+
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      res.status(500).json({ error: 'Auth not configured.' });
+      return;
+    }
+
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password are required.' });
+      return;
+    }
+
+    const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.signUp({
+      email,
+      password
+    });
+
+    if (signUpError) {
+      res.status(400).json({ error: 'Could not sign up.' });
+      return;
+    }
+
+    const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (tokenError || !tokenData || !tokenData.session || !tokenData.session.access_token) {
+      res.status(400).json({ error: 'Could not sign in after sign up.' });
+      return;
+    }
+
+    setAuthCookie(res, tokenData.session.access_token);
+
+    res.json({ ok: true, user: { id: tokenData.user.id, email } });
+  } catch (err) {
+    res.status(500).json({ error: 'Auth error.' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      res.status(500).json({ error: 'Auth not configured.' });
+      return;
+    }
+
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password are required.' });
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin.auth.signInWithPassword({ email, password });
+    if (error || !data || !data.session || !data.session.access_token) {
+      res.status(400).json({ error: 'Invalid credentials.' });
+      return;
+    }
+
+    setAuthCookie(res, data.session.access_token);
+
+    res.json({ ok: true, user: { id: data.user.id, email } });
+  } catch (err) {
+    res.status(500).json({ error: 'Auth error.' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Auth not configured.' });
+    return;
+  }
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    res.json({ authenticated: false });
+    return;
+  }
+  res.json({ authenticated: true, user: { id: user.id, email: user.email || '' } });
+});
+
 app.post('/api/references', async (req, res) => {
   try {
     const body = req.body || {};
@@ -617,6 +775,180 @@ app.post('/api/references', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/references:', err);
     res.status(500).json({ error: 'Internal error.' });
+  }
+});
+
+// --- Site storage endpoints (server-only persistence) ---
+
+app.get('/api/sites', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Storage not configured.' });
+    return;
+  }
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .select('id, name, created_at, updated_at')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      res.status(500).json({ error: 'Failed to load sites.' });
+      return;
+    }
+    res.json({ sites: (data || []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    })) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load sites.' });
+  }
+});
+
+app.get('/api/sites/:id', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Storage not configured.' });
+    return;
+  }
+  const id = req.params.id;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .select('id, name, html, user_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !data) {
+      res.status(404).json({ error: 'Site not found.' });
+      return;
+    }
+    if (data.user_id !== req.user.id) {
+      res.status(403).json({ error: 'Forbidden.' });
+      return;
+    }
+    res.json({ id: data.id, name: data.name, html: data.html });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load site.' });
+  }
+});
+
+app.post('/api/sites', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Storage not configured.' });
+    return;
+  }
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const html = typeof req.body?.html === 'string' ? req.body.html : '';
+  if (!name || !html) {
+    res.status(400).json({ error: 'Name and html are required.' });
+    return;
+  }
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .insert({ user_id: req.user.id, name, html })
+      .select('id, name, created_at, updated_at')
+      .maybeSingle();
+    if (error || !data) {
+      res.status(500).json({ error: 'Failed to save site.' });
+      return;
+    }
+    res.json({
+      ok: true,
+      site: {
+        id: data.id,
+        name: data.name,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save site.' });
+  }
+});
+
+app.put('/api/sites/:id', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Storage not configured.' });
+    return;
+  }
+  const id = req.params.id;
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : undefined;
+  const html = typeof req.body?.html === 'string' ? req.body.html : undefined;
+  if (!name && !html) {
+    res.status(400).json({ error: 'Nothing to update.' });
+    return;
+  }
+  try {
+    const { data: existing, error: loadError } = await supabaseAdmin
+      .from('sites')
+      .select('id, user_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (loadError || !existing) {
+      res.status(404).json({ error: 'Site not found.' });
+      return;
+    }
+    if (existing.user_id !== req.user.id) {
+      res.status(403).json({ error: 'Forbidden.' });
+      return;
+    }
+
+    const updatePayload = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (html !== undefined) updatePayload.html = html;
+
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('id, name, created_at, updated_at')
+      .maybeSingle();
+    if (error || !data) {
+      res.status(500).json({ error: 'Failed to update site.' });
+      return;
+    }
+    res.json({
+      ok: true,
+      site: {
+        id: data.id,
+        name: data.name,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update site.' });
+  }
+});
+
+// Read-only HTML view of a saved site. Opens in a separate tab.
+app.get('/sites/view/:id', requireAuth, async (req, res) => {
+  if (!supabaseAdmin) {
+    res.status(500).send('Storage not configured.');
+    return;
+  }
+  const id = req.params.id;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('sites')
+      .select('id, html, user_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !data) {
+      res.status(404).send('Site not found.');
+      return;
+    }
+    if (data.user_id !== req.user.id) {
+      res.status(403).send('Forbidden.');
+      return;
+    }
+
+    const html = typeof data.html === 'string' ? data.html : '';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html || '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Empty project</title></head><body></body></html>');
+  } catch (err) {
+    res.status(500).send('Failed to load site.');
   }
 });
 
@@ -1003,9 +1335,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/build', (req, res) => {
   const rawQuery = typeof req.query?.query === 'string' ? req.query.query : '';
   const trimmed = rawQuery.trim();
-  if (!trimmed) {
+  const siteId = typeof req.query?.site === 'string' ? req.query.site.trim() : '';
+
+  if (!trimmed && !siteId) {
     return res.redirect(302, '/');
   }
+
   res.sendFile(path.join(__dirname, 'public', 'build.html'));
 });
 

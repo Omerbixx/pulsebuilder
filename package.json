@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@cerebras/cerebras_cloud_sdk": "^1.46.0",
+    "@supabase/supabase-js": "^2.48.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "request": "^2.88.2"
