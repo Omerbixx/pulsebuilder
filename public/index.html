@@ -185,6 +185,10 @@
             transform: translateY(0);
             pointer-events: auto;
         }
+
+        .auth-btn-primary {
+            color: #ffffff !important;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -431,6 +435,42 @@
         </div>
     </section>
 
+    <div id="auth-modal-backdrop" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-xl border border-black/10 w-full max-w-sm mx-4 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex flex-col">
+                    <span id="auth-modal-title" class="text-sm font-semibold text-gray-900">Sign in to Pulse</span>
+                    <span id="auth-modal-subtitle" class="text-xs text-gray-500">Use your email to log in or create an account.</span>
+                </div>
+                <button id="auth-modal-close" type="button" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded-lg">Close</button>
+            </div>
+            <div id="auth-modal-body" class="space-y-3">
+                <div id="auth-modal-error" class="text-xs text-red-500 hidden"></div>
+                <div id="auth-modal-form" class="space-y-2">
+                    <div class="space-y-1">
+                        <label for="auth-email" class="text-xs font-medium text-gray-700">Email</label>
+                        <input id="auth-email" type="email" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black focus:border-black bg-white" placeholder="you@example.com" />
+                    </div>
+                    <div class="space-y-1">
+                        <label for="auth-password" class="text-xs font-medium text-gray-700">Password</label>
+                        <input id="auth-password" type="password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black focus:border-black bg-white" placeholder="Minimum 6 characters" />
+                    </div>
+                    <div class="flex items-center justify-between gap-2 pt-2">
+                        <button id="auth-login" type="button" class="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-800 hover:bg-gray-50 transition">Log in</button>
+                        <button id="auth-signup" type="button" class="flex-1 px-3 py-2 rounded-lg bg-black auth-btn-primary text-xs font-medium hover:bg-gray-900 transition">Sign up</button>
+                    </div>
+                </div>
+                <div id="auth-modal-logout" class="space-y-3 hidden">
+                    <div class="text-sm text-gray-800">Log out from Pulse?</div>
+                    <div class="flex items-center justify-end gap-2">
+                        <button id="auth-logout-cancel" type="button" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-700 hover:bg-gray-50 transition">Cancel</button>
+                        <button id="auth-logout-confirm" type="button" class="px-3 py-1.5 rounded-lg bg-black text-white text-xs font-medium hover:bg-gray-900 transition">Log out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer class="border-t border-white/10 py-12">
         <div class="container mx-auto px-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -503,6 +543,73 @@
         let recentSitesAll = [];
         let recentSitesCurrentPage = 1;
 
+        const authModalBackdrop = document.getElementById('auth-modal-backdrop');
+        const authModalClose = document.getElementById('auth-modal-close');
+        const authModalTitle = document.getElementById('auth-modal-title');
+        const authModalSubtitle = document.getElementById('auth-modal-subtitle');
+        const authModalError = document.getElementById('auth-modal-error');
+        const authModalForm = document.getElementById('auth-modal-form');
+        const authModalLogout = document.getElementById('auth-modal-logout');
+        const authEmailInput = document.getElementById('auth-email');
+        const authPasswordInput = document.getElementById('auth-password');
+        const authLoginBtn = document.getElementById('auth-login');
+        const authSignupBtn = document.getElementById('auth-signup');
+        const authLogoutCancelBtn = document.getElementById('auth-logout-cancel');
+        const authLogoutConfirmBtn = document.getElementById('auth-logout-confirm');
+
+        let authModalAuthResolver = null;
+        let authModalLogoutResolver = null;
+
+        function openAuthModalBase() {
+          if (!authModalBackdrop) return;
+          authModalBackdrop.classList.remove('hidden');
+          authModalBackdrop.classList.add('flex');
+        }
+
+        function closeAuthModal() {
+          if (!authModalBackdrop) return;
+          authModalBackdrop.classList.add('hidden');
+          authModalBackdrop.classList.remove('flex');
+          if (authModalError) {
+            authModalError.textContent = '';
+            authModalError.classList.add('hidden');
+          }
+          if (authEmailInput) authEmailInput.value = '';
+          if (authPasswordInput) authPasswordInput.value = '';
+          if (authModalAuthResolver) {
+            authModalAuthResolver(null);
+            authModalAuthResolver = null;
+          }
+          if (authModalLogoutResolver) {
+            authModalLogoutResolver(false);
+            authModalLogoutResolver = null;
+          }
+        }
+
+        function showAuthFormMode() {
+          if (authModalForm) authModalForm.classList.remove('hidden');
+          if (authModalLogout) authModalLogout.classList.add('hidden');
+          if (authModalTitle) authModalTitle.textContent = 'Sign in to Pulse';
+          if (authModalSubtitle) authModalSubtitle.textContent = 'Use your email to log in or create an account.';
+        }
+
+        function showLogoutMode() {
+          if (authModalForm) authModalForm.classList.add('hidden');
+          if (authModalLogout) authModalLogout.classList.remove('hidden');
+          if (authModalTitle) authModalTitle.textContent = 'Log out';
+          if (authModalSubtitle) authModalSubtitle.textContent = '';
+        }
+
+        function showAuthError(message) {
+          if (!authModalError) return;
+          authModalError.textContent = message || '';
+          if (message) {
+            authModalError.classList.remove('hidden');
+          } else {
+            authModalError.classList.add('hidden');
+          }
+        }
+
         async function fetchCurrentUser() {
           try {
             const resp = await fetch('/api/auth/me', {
@@ -516,6 +623,112 @@
           } catch (_) {
             return null;
           }
+        }
+
+        async function promptCredentials() {
+          if (!authModalBackdrop || !authModalForm) return null;
+          showAuthFormMode();
+          showAuthError('');
+          openAuthModalBase();
+
+          return new Promise((resolve) => {
+            authModalAuthResolver = resolve;
+
+            const handle = (mode) => {
+              if (!authEmailInput || !authPasswordInput) {
+                resolve(null);
+                authModalAuthResolver = null;
+                closeAuthModal();
+                return;
+              }
+              const email = authEmailInput.value.trim();
+              const password = authPasswordInput.value;
+              if (!email || !password) {
+                showAuthError('Email and password are required.');
+                return;
+              }
+              showAuthError('');
+              const result = { email, password, mode };
+              authModalAuthResolver = null;
+              closeAuthModal();
+              resolve(result);
+            };
+
+            if (authLoginBtn) {
+              authLoginBtn.onclick = () => handle('login');
+            }
+            if (authSignupBtn) {
+              authSignupBtn.onclick = () => handle('signup');
+            }
+          });
+        }
+
+        async function promptLogoutConfirm() {
+          if (!authModalBackdrop || !authModalLogout) return false;
+          showLogoutMode();
+          showAuthError('');
+          openAuthModalBase();
+
+          return new Promise((resolve) => {
+            authModalLogoutResolver = resolve;
+            if (authLogoutCancelBtn) {
+              authLogoutCancelBtn.onclick = () => {
+                authModalLogoutResolver = null;
+                closeAuthModal();
+                resolve(false);
+              };
+            }
+            if (authLogoutConfirmBtn) {
+              authLogoutConfirmBtn.onclick = () => {
+                authModalLogoutResolver = null;
+                closeAuthModal();
+                resolve(true);
+              };
+            }
+          });
+        }
+
+        async function handleHomeAccountClick() {
+          const user = await fetchCurrentUser();
+          if (!user) {
+            const creds = await promptCredentials();
+            if (!creds) return;
+            const mode = creds.mode === 'signup' ? 'signup' : 'login';
+            const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+            const payload = { email: creds.email, password: creds.password };
+            try {
+              const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+              });
+              const data = await resp.json().catch(() => null);
+              if (!resp.ok || !data || data.error) {
+                const msg = data && data.error ? data.error : 'Auth failed.';
+                showAuthFormMode();
+                openAuthModalBase();
+                showAuthError(msg);
+                return;
+              }
+              await refreshAccountStatus();
+            } catch (_) {
+              showAuthFormMode();
+              openAuthModalBase();
+              showAuthError('Auth failed.');
+            }
+            return;
+          }
+
+          const choice = await promptLogoutConfirm();
+          if (!choice) return;
+          try {
+            await fetch('/api/auth/logout', {
+              method: 'POST',
+              credentials: 'include'
+            });
+          } catch (_) {}
+          await refreshAccountStatus();
         }
 
         async function refreshAccountStatus() {
@@ -537,49 +750,30 @@
           loadRecentSites();
         }
 
-        async function promptCredentials() {
-          const email = window.prompt('Email:');
-          if (!email) return null;
-          const password = window.prompt('Password:');
-          if (!password) return null;
-          return { email: email.trim(), password };
-        }
-
-        async function handleHomeAccountClick() {
-          const user = await fetchCurrentUser();
-          if (!user) {
-            const creds = await promptCredentials();
-            if (!creds) return;
-            const mode = window.confirm('OK = Sign up, Cancel = Log in') ? 'signup' : 'login';
-            const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
-            try {
-              const resp = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify(creds)
-              });
-              const data = await resp.json().catch(() => null);
-              if (!resp.ok || !data || data.error) {
-                window.alert(data && data.error ? data.error : 'Auth failed.');
-                return;
-              }
-              await refreshAccountStatus();
-            } catch (_) {
-              window.alert('Auth failed.');
-            }
-            return;
-          }
-
-          const choice = window.confirm('OK = Log out, Cancel = stay signed in');
-          if (!choice) return;
+        async function loadRecentSites() {
+          if (!recentSitesBody) return;
           try {
-            await fetch('/api/auth/logout', {
-              method: 'POST',
+            const resp = await fetch('/api/sites', {
+              method: 'GET',
               credentials: 'include'
             });
-          } catch (_) {}
-          await refreshAccountStatus();
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.error) {
+              recentSitesBody.textContent = 'Failed to load sites.';
+              return;
+            }
+            const sites = Array.isArray(data.sites) ? data.sites : [];
+            if (!sites.length) {
+              recentSitesAll = [];
+              renderRecentSitesPage();
+              return;
+            }
+            recentSitesAll = sites;
+            recentSitesCurrentPage = 1;
+            renderRecentSitesPage();
+          } catch (_) {
+            recentSitesBody.textContent = 'Failed to load sites.';
+          }
         }
 
         function renderRecentSitesPage() {
@@ -646,32 +840,6 @@
           }
           if (recentSitesNext) {
             recentSitesNext.disabled = recentSitesCurrentPage >= totalPages;
-          }
-        }
-
-        async function loadRecentSites() {
-          if (!recentSitesBody) return;
-          try {
-            const resp = await fetch('/api/sites', {
-              method: 'GET',
-              credentials: 'include'
-            });
-            const data = await resp.json().catch(() => null);
-            if (!resp.ok || !data || data.error) {
-              recentSitesBody.textContent = 'Failed to load sites.';
-              return;
-            }
-            const sites = Array.isArray(data.sites) ? data.sites : [];
-            if (!sites.length) {
-              recentSitesAll = [];
-              renderRecentSitesPage();
-              return;
-            }
-            recentSitesAll = sites;
-            recentSitesCurrentPage = 1;
-            renderRecentSitesPage();
-          } catch (_) {
-            recentSitesBody.textContent = 'Failed to load sites.';
           }
         }
 
@@ -878,6 +1046,20 @@
         if (homeAccountButton) {
           homeAccountButton.addEventListener('click', () => {
             handleHomeAccountClick();
+          });
+        }
+
+        if (authModalClose) {
+          authModalClose.addEventListener('click', () => {
+            closeAuthModal();
+          });
+        }
+
+        if (authModalBackdrop) {
+          authModalBackdrop.addEventListener('click', (event) => {
+            if (event.target === authModalBackdrop) {
+              closeAuthModal();
+            }
           });
         }
 
