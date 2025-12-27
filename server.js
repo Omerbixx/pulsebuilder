@@ -599,7 +599,6 @@ app.post('/api/references', async (req, res) => {
     const cookieParts = [
       `pulse_refs=${value}`,
       'Path=/',
-      'HttpOnly',
       'SameSite=Lax',
       'Max-Age=1800' // 30 minutes
     ];
@@ -967,23 +966,7 @@ ${referenceContext}\n\nUser request:\n${cleanUserText}`
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-function clearAllCookies(res) {
-  const clears = [
-    'turnstile_ok=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
-    'pulse_refs=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'
-  ];
-
-  const finalClears =
-    process.env.NODE_ENV === 'production'
-      ? clears.map((c) => c + '; Secure')
-      : clears;
-
-  res.setHeader('Set-Cookie', finalClears);
-}
-
 app.get('/build', (req, res) => {
-  clearAllCookies(res);
-
   const rawQuery = typeof req.query?.query === 'string' ? req.query.query : '';
   const trimmed = rawQuery.trim();
   if (!trimmed) {
@@ -993,7 +976,6 @@ app.get('/build', (req, res) => {
 });
 
 app.get('*', (req, res) => {
-  clearAllCookies(res);
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

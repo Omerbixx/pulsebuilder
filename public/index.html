@@ -454,18 +454,34 @@
 
     <script>
       document.addEventListener('DOMContentLoaded', () => {
-        try { localStorage.clear(); } catch (_) {}
-        try { sessionStorage.clear(); } catch (_) {}
+        let reloadCount = 0;
         try {
-          const cookies = document.cookie ? document.cookie.split(';') : [];
-          for (const c of cookies) {
-            const eqPos = c.indexOf('=');
-            const name = (eqPos > -1 ? c.substr(0, eqPos) : c).trim();
-            if (name) {
-              document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-            }
-          }
+          const raw = localStorage.getItem('pulse:reloadCount');
+          const n = parseInt(raw || '0', 10);
+          if (Number.isFinite(n) && n > 0) reloadCount = n;
         } catch (_) {}
+
+        reloadCount += 1;
+
+        if (reloadCount >= 2) {
+          try { localStorage.clear(); } catch (_) {}
+          try { sessionStorage.clear(); } catch (_) {}
+          try {
+            const cookies = document.cookie ? document.cookie.split(';') : [];
+            for (const c of cookies) {
+              const eqPos = c.indexOf('=');
+              const name = (eqPos > -1 ? c.substr(0, eqPos) : c).trim();
+              if (name) {
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+              }
+            }
+          } catch (_) {}
+
+          try { localStorage.removeItem('pulse:reloadCount'); } catch (_) {}
+        } else {
+          // First load/refresh: just remember that we loaded once.
+          try { localStorage.setItem('pulse:reloadCount', String(reloadCount)); } catch (_) {}
+        }
 
         const promptTextarea = document.getElementById('prompt-textarea');
         const generateButton = document.getElementById('generate-btn');
